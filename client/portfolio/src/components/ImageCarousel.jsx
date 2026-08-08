@@ -1,16 +1,16 @@
 import { useState, useEffect } from "react";
 import { ChevronLeftIcon, ChevronRightIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
-import Annecy from '../assets/Images/annecy.jpg';
-import Backpack from '../assets/Images/backpack.jpg';
-import Grad from '../assets/Images/grad.jpg';
-import Kelp from '../assets/Images/kelp.jpg';
-import TdF from '../assets/Images/tdf.jpg';
-import Tent from '../assets/Images/tent.jpg';
-import Vancouver from '../assets/Images/vancouver.jpg';
-import Vienna from '../assets/Images/vienna.jpg';
-import Widgeon from '../assets/Images/widgeon.jpg';
-import Freitag from '../assets/Images/freitag.jpg';
+import Annecy from '../assets/images/annecy.jpg';
+import Backpack from '../assets/images/backpack.jpg';
+import Grad from '../assets/images/grad.jpg';
+import Kelp from '../assets/images/kelp.jpg';
+import TdF from '../assets/images/tdf.jpg';
+import Tent from '../assets/images/tent.jpg';
+import Vancouver from '../assets/images/vancouver.jpg';
+import Vienna from '../assets/images/vienna.jpg';
+import Widgeon from '../assets/images/widgeon.jpg';
+import Freitag from '../assets/images/freitag.jpg';
 
 const images = [
   Grad, TdF, Kelp, Vancouver, Widgeon, Backpack, Tent, Annecy, Freitag, Vienna
