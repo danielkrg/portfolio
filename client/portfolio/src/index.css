@@ -1,0 +1,62 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+@font-face {
+  font-family: 'ClashDisplay';
+  src: url('./assets/fonts/ClashDisplay-Variable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Ranade';
+  src: url('./assets/fonts/Ranade-Variable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@theme {
+  --font-clash: 'ClashDisplay', sans-serif;
+  --font-ranade: 'Ranade', sans-serif;
+  --font-sans: 'Ranade', sans-serif;
+
+  --animate-fadeIn: fadeIn 2s;
+  --animate-fadeInMed: fadeIn 1s;
+  --animate-fadeInFast: fadeIn .5s;
+  --animate-fadeInTranslucent: fadeInTranslucent 2s;
+  --animate-fadeInOp60: fadeInOp60 .5s;
+
+  @keyframes fadeIn {
+    0% { opacity: 0 }
+    100% { opacity: 1 }
+  }
+  @keyframes fadeInTranslucent {
+    0% { opacity: 0 }
+    100% { opacity: .4 }
+  }
+
+  --animate-blinking-cursor: blinking-cursor 0.7s step-start infinite;
+  @keyframes blinking-cursor {
+    50% { opacity: 0 }
+    100% { opacity: 1 }
+  }
+}
+
+:root {
+  color-scheme: dark;
+  background-color: #fafaf9;
+  color: #1a1a18;
+}
+
+.starsync {
+  font-family: monospace;
+  font-weight: 400;
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+}
+
+body {
+  font-family: 'Ranade', sans-serif;
+  background-color: #fafaf9;
+  margin: 0;
+}

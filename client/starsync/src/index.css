@@ -1,0 +1,45 @@
+
+  :root {
+    font-family: monospace;
+    font-weight: 400;
+
+    color-scheme: light dark;
+    color: rgba(255, 255, 255, 0.87);
+  }
+
+  @theme {
+    --animate-fadeIn: fadeIn 2s;
+    --animate-fadeInMed: fadeIn 1s;
+    --animate-fadeInFast: fadeIn .5s;
+    --animate-fadeInTranslucent: fadeInTranslucent 2s;
+    --animate-fadeInOp60: fadeInOp60 .5s;
+    
+    @keyframes fadeIn {
+      0% {
+        opacity: 0
+      }
+      100% {
+        opacity: 1
+      }
+    }
+
+    @keyframes fadeInTranslucent {
+      0% {
+        opacity: 0
+      }
+      100% {
+        opacity: .4
+      }
+    }
+
+    --animate-blinking-cursor: blinking-cursor 0.7s step-start infinite;
+    @keyframes blinking-cursor {
+      50% {
+        opacity: 0
+      }
+      100% {
+        opacity: 1
+      }
+    }
+  }
+
