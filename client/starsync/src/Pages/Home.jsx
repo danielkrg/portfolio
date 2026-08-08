@@ -55,7 +55,7 @@ function Home({ preview = false }) {
     }, [displayedText, phase, currentIndex]);
   
     const handleLogin = () => {
-      window.location.href = 'http//localhost:5001/api/starsync/login';
+      window.location.href = `${import.meta.env.VITE_API_URL}/api/starsync/login`;
     };
   
     return (
