@@ -38,7 +38,7 @@ export function UserDataProvider({ children }) {
             setShortTermData(response.data);
         } catch (error) {
             console.error("Error fetching short-term user data:", error);
-            Navigate('error');
+            navigate('error');
         }
     };
 
