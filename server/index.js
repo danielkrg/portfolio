@@ -34,7 +34,7 @@ app.use(session({
 app.use('/api/starsync', starSyncRouter);
 // app.use('/api/portfolio', portfolioRouter);
 
-app.get('/', (req, res) => res.json({ status: 'ok' }));
+// app.get('/', (req, res) => res.json({ status: 'ok' }));
 
 app.use(express.static(path.join(__dirname, '../client/portfolio/dist')));
 app.get('*', (req, res) => {
