@@ -11,7 +11,7 @@ export function UserDataProvider({ children }) {
     const api = import.meta.env.VITE_API_URL;
     const [longTermData, setLongTermData] = useState(null);
     const [shortTermData, setShortTermData] = useState(null);
-    const isDemo = localStorage.getItem('demoMode') === 'true'
+    const [isDemo, setIsDemo] = useState(() => localStorage.getItem('demoMode') === 'true');
 
     // Function to fetch long-term data
     const fetchLongTermData = async () => {
@@ -58,7 +58,7 @@ export function UserDataProvider({ children }) {
     }, [isDemo]);
 
     return (
-        <UserDataContext.Provider value={{ longTermData, shortTermData, fetchLongTermData, fetchShortTermData }}>
+        <UserDataContext.Provider value={{ longTermData, shortTermData, isDemo, fetchLongTermData, fetchShortTermData, setIsDemo }}>
             {children}
         </UserDataContext.Provider>
     );

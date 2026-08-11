@@ -8,6 +8,7 @@ function Home({ preview = false }) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [displayedText, setDisplayedText] = useState('');
     const [phase, setPhase] = useState('typing');
+    const { setIsDemo } = useUserData();
 
     const handleExit = () => {
       navigate("../");
@@ -73,7 +74,11 @@ function Home({ preview = false }) {
         
         <div className="absolute top-4 right-4 text-right z-50 animate-fadeInMed">
           <button
-            onClick={() => navigate('dashboard')}
+            onClick={() => { 
+              localStorage.setItem('demoMode', 'true');
+              setIsDemo(true);
+              navigate('dashboard')}
+            }
             className={`font-semibold text-pink-500 hover:text-green-500
             py-2 px-4 rounded-full cursor-pointer
             transition-all duration-300 ease-in-out`}
