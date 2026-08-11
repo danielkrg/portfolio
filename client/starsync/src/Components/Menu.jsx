@@ -10,7 +10,7 @@ function Menu() {
   const handleLogin = () => {
     setIsOpen(false)
     localStorage.setItem('demoMode', 'false');
-    window.location.href = window.location.href = '/api/starsync/login';
+    window.location.href = '/api/starsync/login';
   };
   const isDemo = localStorage.getItem('demoMode') === 'true'
   const mobile = useMobile();
