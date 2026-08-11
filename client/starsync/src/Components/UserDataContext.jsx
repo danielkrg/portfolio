@@ -8,7 +8,7 @@ const UserDataContext = createContext();
 
 export function UserDataProvider({ children }) {
     const navigate = useNavigate();
-    const api = import.meta.env.VITE_API_BASE_URL;
+    const api = import.meta.env.VITE_API_URL;
     const [longTermData, setLongTermData] = useState(null);
     const [shortTermData, setShortTermData] = useState(null);
     const isDemo = localStorage.getItem('demoMode') === 'true'
