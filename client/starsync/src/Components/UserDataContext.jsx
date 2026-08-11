@@ -16,11 +16,15 @@ export function UserDataProvider({ children }) {
     // Function to fetch long-term data
     const fetchLongTermData = async () => {
         try {
+            console.log('fetching auth check...');
             const authCheck = await axios.get(`${api}/api/starsync/checkAuth`, { withCredentials: true });
+            console.log('authCheck:', authCheck.data);
             if (!authCheck.data.authenticated) {
                 return;
             }
+            console.log('fetching userdata...');
             const response = await axios.get(`${api}/api/starsync/userdata?time_range=long_term`, { withCredentials: true });
+            console.log('userdata:', response.data);
             setLongTermData(response.data);
         } catch (error) {
             console.error("Error fetching long-term user data:", error);
@@ -48,10 +52,13 @@ export function UserDataProvider({ children }) {
     }
 
     useEffect(() => {
+        console.log('isDemo:', isDemo);
+        console.log('longTermData:', longTermData);
+        console.log('shortTermData:', shortTermData);
+        
         if (isDemo) {
             fetchDemoData();
-        }
-        else {
+        } else {
             fetchLongTermData();
             fetchShortTermData();
         }
