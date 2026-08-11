@@ -60,7 +60,7 @@ function Home({ preview = false }) {
     localStorage.setItem('demoMode', demo);
     setIsDemo(demo);
     navigate('dashboard')
-  }
+  };
 
   return (
     <div className="relative flex flex-col h-screen bg-gradient-to-t from-pink-950 to-indigo-950 overflow-hidden">
@@ -77,7 +77,7 @@ function Home({ preview = false }) {
       
       <div className="absolute top-4 right-4 text-right z-50 animate-fadeInMed">
         <button
-          onClick={ handleLogin(demo = true) }
+          onClick={ () => handleLogin(true) }
           className={`font-semibold text-pink-500 hover:text-green-500
           py-2 px-4 rounded-full cursor-pointer
           transition-all duration-300 ease-in-out`}
@@ -95,7 +95,7 @@ function Home({ preview = false }) {
         </h1>
 
         <button
-          onClick={ handleLogin }
+          onClick={ () => handleLogin(false) }
           className="border-2 border-pink-600 hover:border-green-500 
             font-semibold text-pink-600 hover:text-green-500
             py-2 px-4 rounded-full cursor-pointer
