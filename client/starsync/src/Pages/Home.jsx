@@ -59,8 +59,9 @@ function Home({ preview = false }) {
     const handleLogin = () => {
       localStorage.setItem('demoMode', 'true');
       setIsDemo(true);
-      navigate('dashboard')}
-    };
+      navigate('dashboard')
+    }
+  };
   
     return (
       <div className="relative flex flex-col h-screen bg-gradient-to-t from-pink-950 to-indigo-950 overflow-hidden">
@@ -112,6 +113,6 @@ function Home({ preview = false }) {
         </div> */}
       </div>
     );
-  }
+
   
 export default Home
