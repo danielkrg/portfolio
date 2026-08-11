@@ -22,20 +22,18 @@ app.use(cors({
     origin: FRONTEND_URL,
     credentials: true,
 }));
-app.use(express.static(path.join(__dirname, '../client/portfolio/dist')));
+app.use(express.json());
 app.use(session({
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: { secure: false },
-  }));
+}));
 
 // Mount routers
 app.use('/api/starsync', starSyncRouter);
 // app.use('/api/portfolio', portfolioRouter);
 
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/portfolio/dist/index.html'));
-});
+app.get('/', (req, res) => res.json({ status: 'ok' }));
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
