@@ -16,11 +16,11 @@ export function UserDataProvider({ children }) {
     // Function to fetch long-term data
     const fetchLongTermData = async () => {
         try {
-            const authCheck = await axios.get(`${api}/checkAuth`, { withCredentials: true });
+            const authCheck = await axios.get(`${api}/api/starsync/checkAuth`, { withCredentials: true });
             if (!authCheck.data.authenticated) {
                 return;
             }
-            const response = await axios.get(`${api}/userdata?time_range=long_term`, { withCredentials: true });
+            const response = await axios.get(`${api}/api/starsync/userdata?time_range=long_term`, { withCredentials: true });
             setLongTermData(response.data);
         } catch (error) {
             console.error("Error fetching long-term user data:", error);
@@ -31,10 +31,10 @@ export function UserDataProvider({ children }) {
     // Function to fetch short-term data
     const fetchShortTermData = async () => {
         try {
-            const authCheck = await axios.get(`${api}/checkAuth`, { withCredentials: true });
+            const authCheck = await axios.get(`${api}/api/starsync/checkAuth`, { withCredentials: true });
             if (!authCheck.data.authenticated) return;
             
-            const response = await axios.get(`${api}/userdata?time_range=short_term`, { withCredentials: true });
+            const response = await axios.get(`${api}/api/starsync/userdata?time_range=short_term`, { withCredentials: true });
             setShortTermData(response.data);
         } catch (error) {
             console.error("Error fetching short-term user data:", error);
