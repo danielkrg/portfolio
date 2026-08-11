@@ -59,7 +59,7 @@ function Home({ preview = false }) {
   const handleLogin = () => {
     localStorage.setItem('demoMode', 'false');
     setIsDemo(false);
-    window.location.href = `${import.meta.env.VITE_API_URL}/api/starsync/login`
+    window.location.href = window.location.href = '/api/starsync/login';
   };
 
   const handleDemo= () => {
