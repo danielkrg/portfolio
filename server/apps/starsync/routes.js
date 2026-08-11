@@ -6,7 +6,7 @@ const router = Router();
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI;
-const FRONTEND_URL = process.env.FRONTEND_URL;
+const FRONTEND_URL = process.env.VITE_API_URL;
 
 router.get('/login', (req, res) => {
     const scopes = 'user-top-read';

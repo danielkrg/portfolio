@@ -13,7 +13,7 @@ import starSyncRouter from './apps/starsync/routes.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const FRONTEND_URL = process.env.FRONTEND_URL;
+const FRONTEND_URL = process.env.VITE_API_URL;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
