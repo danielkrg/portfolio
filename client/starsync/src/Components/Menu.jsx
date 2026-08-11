@@ -7,10 +7,11 @@ import { useNavigate } from "react-router-dom";
 function Menu() {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
+  const api = import.meta.env.VITE_API_BASE_URL;
   const handleLogin = () => {
     setIsOpen(false)
     localStorage.setItem('demoMode', 'false');
-    window.location.href = '/api/starsync/login';
+    window.location.href = `${api}/api/starsync/login`;
   };
   const isDemo = localStorage.getItem('demoMode') === 'true'
   const mobile = useMobile();
