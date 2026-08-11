@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from "react-router-dom";
+import { useUserData } from '../Components/UserDataContext';
 // import Waves from '../assets/SVGs/layeredWavesHome.svg?react'
 
 function Home({ preview = false }) {
