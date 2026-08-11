@@ -38,7 +38,7 @@ router.get('/callback', async (req, res) => {
             { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
         );
         req.session.accessToken = response.data.access_token;
-        console.log(FRONTEND_URL)
+        console.log(`FRONTEND_URL: ${FRONTEND_URL}`)
         res.redirect(`${FRONTEND_URL}/apps/starsync/dashboard`);
     } catch (error) {
         console.error('Error getting token:', error.response?.data || error.message);
