@@ -6,7 +6,7 @@ function Error() {
     const navigate = useNavigate();
     const messages = [
         'DUE TO NEW SPOTIFY POLICIES, APPS LIKE THIS ARE NO LONGER ALLOWED TO BE PUBLIC...',
-        'PLEASE CONTACT STARSYNCDEV@GMAIL.COM TO OBTAIN THE DEMO CODE OR TO ACCESS FULL VERSION',
+        'PLEASE USE THE DEMO OR CONTACT STARSYNCDEV@GMAIL.COM TO OBTAIN FULL VERSION',
     ];
     const [currentIndex, setCurrentIndex] = useState(0);
     const [displayedText, setDisplayedText] = useState('');
@@ -21,7 +21,7 @@ function Error() {
             if (displayedText.length < currentMessage.length) {
               timeout = setTimeout(() => {
                 setDisplayedText(currentMessage.slice(0, displayedText.length + 1));
-              },50);
+              }, 100);
             } 
             else {
               // Typing done → pause before deleting
@@ -47,9 +47,9 @@ function Error() {
         return () => clearTimeout(timeout);
     }, [displayedText, phase, currentIndex]);
 
-    const handleHome = () => {
+    const handleDemo = () => {
         localStorage.setItem('demoMode', 'false');
-        navigate('home');
+        navigate('./demo');
     }
 
     return (
@@ -67,7 +67,7 @@ function Error() {
                     <span className={`animate-blinking-cursor ${mobile ? "text-3xl" : "text-5xl"}`}>|</span>
                 </h1>
                 <button
-                    onClick={handleHome}
+                    onClick={handleDemo}
                     className="border-2 border-slate-600 hover:border-green-500 
                     font-semibold text-slate-600 hover:text-green-500
                     py-2 px-4 rounded-full cursor-pointer
