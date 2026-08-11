@@ -36,4 +36,9 @@ app.use('/api/starsync', starSyncRouter);
 
 app.get('/', (req, res) => res.json({ status: 'ok' }));
 
+app.use(express.static(path.join(__dirname, '../client/portfolio/dist')));
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/portfolio/dist/index.html'));
+});
+
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
