@@ -38,10 +38,11 @@ router.get('/callback', async (req, res) => {
             { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
         );
         req.session.accessToken = response.data.access_token;
+        console.log(FRONTEND_URL)
         res.redirect(`${FRONTEND_URL}/apps/starsync/dashboard`);
     } catch (error) {
         console.error('Error getting token:', error.response?.data || error.message);
-        res.redirect(`${FRONTEND_URL}/apps/starsync`);
+        res.redirect(`${FRONTEND_URL}/apps/starsync/error`);
     }
 });
 
@@ -49,7 +50,7 @@ router.get('/userdata', async (req, res) => {
     const accessToken = req.session.accessToken;
     const timeRange = req.query.time_range || 'long_term';
     if (!accessToken) {
-        return res.redirect(`${FRONTEND_URL}/apps/starsync`);
+        return res.redirect(`${FRONTEND_URL}/apps/starsync/error`);
     }
     try {
         const [profileNameResponse, tracksResponse, artistsResponse, playlistResponse] = await Promise.all([
@@ -89,7 +90,7 @@ router.get('/userdata', async (req, res) => {
         });
     } catch (error) {
         console.error('Error fetching data:', error.response?.data || error.message);
-        res.redirect(`${FRONTEND_URL}/apps/starsync`);
+        res.redirect(`${FRONTEND_URL}/apps/starsync/error`);
     }
 });
 
