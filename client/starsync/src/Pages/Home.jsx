@@ -56,9 +56,9 @@ function Home({ preview = false }) {
     return () => clearTimeout(timeout);
   }, [displayedText, phase, currentIndex]);
 
-  const handleLogin = () => {
-    localStorage.setItem('demoMode', 'true');
-    setIsDemo(true);
+  const handleLogin = (demo = false) => {
+    localStorage.setItem('demoMode', demo);
+    setIsDemo(demo);
     navigate('dashboard')
   }
 
@@ -77,7 +77,7 @@ function Home({ preview = false }) {
       
       <div className="absolute top-4 right-4 text-right z-50 animate-fadeInMed">
         <button
-          onClick={ handleLogin }
+          onClick={ handleLogin(demo = true) }
           className={`font-semibold text-pink-500 hover:text-green-500
           py-2 px-4 rounded-full cursor-pointer
           transition-all duration-300 ease-in-out`}

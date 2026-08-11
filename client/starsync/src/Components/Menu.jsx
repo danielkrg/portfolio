@@ -9,7 +9,7 @@ function Menu() {
   const [isOpen, setIsOpen] = useState(false);
   const handleLogin = () => {
     setIsOpen(false)
-    localStorage.setItem('demoMode', 'true');
+    localStorage.setItem('demoMode', 'false');
     window.location.href = `${import.meta.env.VITE_API_URL}/api/starsync/login`;
   };
   const isDemo = localStorage.getItem('demoMode') === 'true'
