@@ -56,9 +56,15 @@ function Home({ preview = false }) {
     return () => clearTimeout(timeout);
   }, [displayedText, phase, currentIndex]);
 
-  const handleLogin = (demo = false) => {
-    localStorage.setItem('demoMode', demo);
-    setIsDemo(demo);
+  const handleLogin = () => {
+    localStorage.setItem('demoMode', 'false');
+    setIsDemo(false);
+    window.location.href = `${import.meta.env.VITE_API_URL}/api/starsync/login`
+  };
+
+  const handleDemo= () => {
+    localStorage.setItem('demoMode', 'true');
+    setIsDemo(true);
     navigate('dashboard')
   };
 
@@ -77,7 +83,7 @@ function Home({ preview = false }) {
       
       <div className="absolute top-4 right-4 text-right z-50 animate-fadeInMed">
         <button
-          onClick={ () => handleLogin(true) }
+          onClick={ handleDemo }
           className={`font-semibold text-pink-500 hover:text-green-500
           py-2 px-4 rounded-full cursor-pointer
           transition-all duration-300 ease-in-out`}
@@ -95,7 +101,7 @@ function Home({ preview = false }) {
         </h1>
 
         <button
-          onClick={ () => handleLogin(false) }
+          onClick={ handleLogin }
           className="border-2 border-pink-600 hover:border-green-500 
             font-semibold text-pink-600 hover:text-green-500
             py-2 px-4 rounded-full cursor-pointer
