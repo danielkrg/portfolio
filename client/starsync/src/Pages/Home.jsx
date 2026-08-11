@@ -57,6 +57,8 @@ function Home({ preview = false }) {
     }, [displayedText, phase, currentIndex]);
   
     const handleLogin = () => {
+      setIsOpen(false)
+      localStorage.setItem('demoMode', 'true');
       window.location.href = `${import.meta.env.VITE_API_URL}/api/starsync/login`;
     };
   
