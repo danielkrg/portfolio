@@ -71,7 +71,7 @@ export default function Home({ isDark, setIsDark, isFrench, setIsFrench }) {
               /* Mobile — burger on right */
               <button
                 onClick={() => setMenuOpen((prev) => !prev)}
-                className={`${theme.textSecondary} ${theme.textHover} cursor-pointer transition-colors duration-200`}
+                className={`${theme.textSecondary} ${theme.textHover} w-10 h-10 cursor-pointer transition-colors duration-200`}
               >
                 {menuOpen
                   ? <XMarkIcon className="h-5 w-5" />
@@ -117,20 +117,21 @@ export default function Home({ isDark, setIsDark, isFrench, setIsFrench }) {
               </div>
             )}
           </div>
-
-          {/* Mobile dropdown */}
-          {mobile && menuOpen && (
-            <div className={`border-t ${theme.border} px-10 py-6 flex flex-col gap-6 ${theme.navBg} backdrop-blur-sm`}>
-              {c.nav.links.map((link) => (
-                <button
-                  key={link.value}
-                  onClick={() => { scrollTo(link.value); setMenuOpen(false); }}
-                  className={`${link.style} ${theme.textHover} transition-colors duration-200 cursor-pointer text-left`}
-                >
-                  {link.value}
-                </button>
-              ))}
-              <div className={`w-full h-px ${isDark ? "bg-white/20" : "bg-black/10"}`} />
+        </nav>
+        {/* Mobile dropdown */}
+        {mobile && menuOpen && (
+          <div className={`fixed left-0 right-0 mt-26 z-50 border-b ${theme.border} px-10 py-6 flex flex-col gap-6 backdrop-blur-sm 
+                transition-colors duration-500 ${starSyncHovered ? "bg-black/30" : theme.navBg}`}>
+            {c.nav.links.map((link) => (
+              <button
+                key={link.value}
+                onClick={() => { scrollTo(link.value); setMenuOpen(false); }}
+                className={`${link.style} ${theme.textHover} transition-colors duration-200 cursor-pointer text-left`}
+              >
+                {link.value}
+              </button>
+            ))}
+            <div className={`w-full h-px ${isDark ? "bg-white/20" : "bg-black/10"}`} />
               <div className="flex items-center gap-6">
                 <button
                   onClick={toggleLanguage}
@@ -149,9 +150,8 @@ export default function Home({ isDark, setIsDark, isFrench, setIsFrench }) {
                   }
                 </button>
               </div>
-            </div>
-          )}
-        </nav>
+          </div>
+        )}
 
         {/* Hero */}
         <section id="portfolio" className={`pb-15 pt-34 flex justify-between ${mobile ? "flex-col gap-10" : ""}`}>
