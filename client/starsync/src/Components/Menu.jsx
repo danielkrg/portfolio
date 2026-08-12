@@ -33,7 +33,7 @@ function Menu() {
       </button>
 
       {isOpen && (
-        <div className={`flex ${mobile ? "space-x-5 items-center" : "flex-col space-y-5 mt-2"} ml-5 text-pink-100/40`}>
+        <div className={`flex ${mobile ? "justify-between gap-5 items-center text-sm max-w-3/4" : "flex-col space-y-5 mt-2"} text-pink-100/40`}>
           <Link
             to="../dashboard"
             className="hover:text-green-500 transition-all ease-in-out duration-300"
@@ -50,7 +50,7 @@ function Menu() {
           </Link>
           {isDemo ? <button
             onClick={() => handleLogin()}
-            className={`${isDemo ? "cursor-pointer" : "opacity-0 pointer-events-none"} hover:text-green-500 transition-all ease-in-out duration-300 text-left`}>
+            className={`${isDemo ? "cursor-pointer" : "opacity-0 pointer-events-none"} hover:text-green-500 transition-all ease-in-out duration-300`}>
             Try With Your Own Account
           </button>
           : <></>}

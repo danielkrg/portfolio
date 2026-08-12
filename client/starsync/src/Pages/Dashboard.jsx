@@ -72,7 +72,7 @@ function Dashboard() {
                 </div>
             </div>
 
-            <div className="w-full relative">
+            <div className="w-full overflow-y-scroll">
                 {views.map((view, i) => (
                     <div key = {i}
                     className={`inset-0 transition-opacity duration-500
