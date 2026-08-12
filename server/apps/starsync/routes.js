@@ -26,34 +26,39 @@ router.get('/checkAuth', (req, res) => {
 });
 
 router.get('/callback', async (req, res) => {
+    console.log('callback hit, code:', !!req.query.code);
+    console.log('callback sessionID:', req.sessionID);
     const code = req.query.code;
     try {
-        const response = await axios.post(
-            'https://accounts.spotify.com/api/token',
-            new URLSearchParams({
-                grant_type: 'authorization_code',
-                code,
-                redirect_uri: REDIRECT_URI,
-                client_id: CLIENT_ID,
-                client_secret: CLIENT_SECRET,
-            }),
-            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-        );
-        req.session.accessToken = response.data.access_token;
-        req.session.save((err) => {
-            if (err) {
-              console.log('Set-Cookie header:', res.getHeader('Set-Cookie'));
-              res.redirect(`${FRONTEND_URL}/apps/starsync/error`);
-            }
-            console.log('Session saved, sessionID:', req.sessionID);
-            console.log('Access token set:', !!req.session.accessToken);
-            res.redirect(`${FRONTEND_URL}/apps/starsync/dashboard`);
-        });
+      console.log('exchanging code for token...');
+      const response = await axios.post(
+        'https://accounts.spotify.com/api/token',
+        new URLSearchParams({
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: REDIRECT_URI,
+          client_id: CLIENT_ID,
+          client_secret: CLIENT_SECRET,
+        }),
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+      );
+      console.log('token received:', !!response.data.access_token);
+      req.session.accessToken = response.data.access_token;
+      console.log('session before save:', req.sessionID, !!req.session.accessToken);
+      
+      req.session.save((err) => {
+        console.log('save callback fired, err:', err);
+        console.log('Set-Cookie:', res.getHeader('Set-Cookie'));
+        if (err) {
+          return res.redirect(`${FRONTEND_URL}/apps/starsync/error`);
+        }
+        res.redirect(`${FRONTEND_URL}/apps/starsync/dashboard`);
+      });
     } catch (error) {
-        console.error('Error getting token:', error.response?.data || error.message);
-        res.redirect(`${FRONTEND_URL}/apps/starsync/error`);
+      console.error('callback error:', error.response?.data || error.message);
+      res.redirect(`${FRONTEND_URL}/apps/starsync/error`);
     }
-});
+  });
 
 router.get('/userdata', async (req, res) => {
     const accessToken = req.session.accessToken;
