@@ -45,6 +45,10 @@ export default function ImageCarousel({ dimmed = false, isDark = false, captions
   };
 
   useEffect(() => {
+    slides.forEach(({ image }) => {
+      const img = new Image();
+      img.src = image;
+    });
     if (!fullscreen) return;
     const handleKey = (e) => {
       if (e.key === 'ArrowLeft') change('left');
@@ -67,7 +71,7 @@ export default function ImageCarousel({ dimmed = false, isDark = false, captions
           </p>
         </div>
 
-        <div className={`${mobile ? "w-[400px] h-[400px]" : "w-[450px] h-[450px]"}relative flex items-center justify-center`}>
+        <div className={`${mobile ? "w-[400px] h-[400px]" : "w-[450px] h-[450px]"} relative flex items-center justify-center`}>
           <img
             key={currentIndex}
             src={image}
