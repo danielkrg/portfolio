@@ -13,22 +13,37 @@ import starSyncRouter from './apps/starsync/routes.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const FRONTEND_URL = process.env.FRONTEND_URL;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 
-app.use(cors({
-    origin: FRONTEND_URL,
+const allowedOrigins = [
+    'https://www.daniel-krouguerski.com',
+    'https://daniel-krouguerski.com',
+    'https://portfolio-server-7thn.onrender.com',
+  ];
+  
+  app.use(cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
-}));
+  }));
 app.use(express.json());
 app.use(session({
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false },
-}));
+    cookie: {
+      secure: true,
+      sameSite: 'none',
+      httpOnly: true,
+    },
+  }));
 
 // Mount routers
 app.use('/api/starsync', starSyncRouter);
