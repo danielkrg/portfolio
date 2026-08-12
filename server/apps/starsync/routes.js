@@ -42,8 +42,8 @@ router.get('/callback', async (req, res) => {
         req.session.accessToken = response.data.access_token;
         req.session.save((err) => {
             if (err) {
-              console.error('Session save error:', err);
-              return res.redirect(`${FRONTEND_URL}/apps/starsync/error`);
+              console.log('Set-Cookie header:', res.getHeader('Set-Cookie'));
+              res.redirect(`${FRONTEND_URL}/apps/starsync/error`);
             }
             console.log('Session saved, sessionID:', req.sessionID);
             console.log('Access token set:', !!req.session.accessToken);

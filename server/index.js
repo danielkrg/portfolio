@@ -32,11 +32,13 @@ const allowedOrigins = [
   app.use(express.json());
   app.use(session({
     secret: process.env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
+    resave: true,
+    saveUninitialized: true,
     cookie: {
       secure: true,
-      sameSite: 'lax',
+      sameSite: 'none',
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000,
     },
   }));
 
