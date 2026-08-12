@@ -4,13 +4,14 @@ import useMobile from '@shared/hooks/useMobile';
 import ImageCarousel from '../components/ImageCarousel';
 import { getContent } from '../data/content';
 import { light, dark } from '../styling/theme';
-import { SunIcon } from '@heroicons/react/24/solid';
+import { SunIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/solid';
 import { MoonIcon } from '@heroicons/react/24/outline';
 
 export default function Home({ isDark, setIsDark, isFrench, setIsFrench }) {
   const navigate = useNavigate();
   const [starSyncHovered, setStarSyncHovered] = useState(false);
   const mobile = useMobile();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const theme = isDark ? dark : light;
   const content = getContent(isDark);
@@ -57,14 +58,80 @@ export default function Home({ isDark, setIsDark, isFrench, setIsFrench }) {
         <nav className={`fixed top-0 left-0 right-0 z-50 border-b ${theme.border} backdrop-blur-sm transition-colors duration-500
                         ${starSyncHovered ? "bg-black/30" : theme.navBg}`}>
           <div className="max-w-7xl mx-auto px-10 flex justify-between items-center py-8">
-            <button key={c.nav.brand.value}
-                  onClick={() => scrollTo(c.nav.brand.value)}
-                  className={`${c.nav.brand.style} ${theme.textHover} cursor-pointer`}>
-                    {c.nav.brand.value}
+            
+            {/* Brand */}
+            <button
+              onClick={() => scrollTo(c.nav.brand.value)}
+              className={`${c.nav.brand.style} ${theme.textHover} cursor-pointer`}
+            >
+              {c.nav.brand.value}
             </button>
-            <div className="flex items-center gap-8 justify-between w-110">
-              <div className="flex items-center gap-10">
-                {/* Language toggle */}
+
+            {mobile ? (
+              /* Mobile — burger on right */
+              <button
+                onClick={() => setMenuOpen((prev) => !prev)}
+                className={`${theme.textSecondary} ${theme.textHover} cursor-pointer transition-colors duration-200`}
+              >
+                {menuOpen
+                  ? <XMarkIcon className="h-5 w-5" />
+                  : <Bars3Icon className="h-5 w-5" />
+                }
+              </button>
+            ) : (
+              /* Desktop */
+              <div className="flex items-center justify-between w-110">
+                <div className="flex items-center gap-10">
+                  <button
+                    onClick={toggleLanguage}
+                    className={`text-xs tracking-widest font-medium transition-colors duration-200 cursor-pointer
+                              ${theme.textSecondary} ${theme.textHover}`}
+                  >
+                    {isFrench ? "FR" : "EN"}
+                  </button>
+                  <button
+                    onClick={() => setIsDark((prev) => !prev)}
+                    className={`transition-colors duration-200 cursor-pointer ${theme.textSecondary} ${theme.textHover}`}
+                  >
+                    {isDark
+                      ? <MoonIcon className="h-5 w-5" />
+                      : <SunIcon className="h-5 w-5" />
+                    }
+                  </button>
+                </div>
+
+                {/* Divider */}
+                <div className={`w-12 h-px ${isDark ? "bg-white/20" : "bg-black/10"}`} />
+
+                <div className="flex items-center gap-8">
+                  {c.nav.links.map((link) => (
+                    <button
+                      key={link.value}
+                      onClick={() => scrollTo(link.value)}
+                      className={`${link.style} ${theme.textHover} transition-colors duration-200 cursor-pointer`}
+                    >
+                      {link.value}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Mobile dropdown */}
+          {mobile && menuOpen && (
+            <div className={`border-t ${theme.border} px-10 py-6 flex flex-col gap-6 ${theme.navBg} backdrop-blur-sm`}>
+              {c.nav.links.map((link) => (
+                <button
+                  key={link.value}
+                  onClick={() => { scrollTo(link.value); setMenuOpen(false); }}
+                  className={`${link.style} ${theme.textHover} transition-colors duration-200 cursor-pointer text-left`}
+                >
+                  {link.value}
+                </button>
+              ))}
+              <div className={`w-full h-px ${isDark ? "bg-white/20" : "bg-black/10"}`} />
+              <div className="flex items-center gap-6">
                 <button
                   onClick={toggleLanguage}
                   className={`text-xs tracking-widest font-medium transition-colors duration-200 cursor-pointer
@@ -72,8 +139,6 @@ export default function Home({ isDark, setIsDark, isFrench, setIsFrench }) {
                 >
                   {isFrench ? "FR" : "EN"}
                 </button>
-
-                {/* Theme toggle */}
                 <button
                   onClick={() => setIsDark((prev) => !prev)}
                   className={`transition-colors duration-200 cursor-pointer ${theme.textSecondary} ${theme.textHover}`}
@@ -83,22 +148,9 @@ export default function Home({ isDark, setIsDark, isFrench, setIsFrench }) {
                     : <SunIcon className="h-5 w-5" />
                   }
                 </button>
-
-                {/* Divider
-                <div className={`w-px h-4 ${isDark ? "bg-white/20" : "bg-black/10"}`} /> */}
               </div>
-
-              {c.nav.links.map((link) => (
-                <button
-                  key={link.value}
-                  onClick={() => scrollTo(link.value)}
-                  className={`${link.style} ${theme.textHover} transition-colors duration-200 cursor-pointer`}
-                >
-                  {link.value}
-                </button>
-              ))}
             </div>
-          </div>
+          )}
         </nav>
 
         {/* Hero */}
