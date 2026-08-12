@@ -15,33 +15,28 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
+const FRONTEND_URL = process.env.FRONTEND_URL;
 
 const allowedOrigins = [
     'https://www.daniel-krouguerski.com',
     'https://daniel-krouguerski.com',
     'https://portfolio-server-7thn.onrender.com',
   ];
+
+  app.set('trust proxy', 1);
   
   app.use(cors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
+    origin: FRONTEND_URL,
     credentials: true,
   }));
-app.use(express.json());
-app.use(session({
+  app.use(express.json());
+  app.use(session({
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: {
       secure: true,
-      sameSite: 'none',
-      httpOnly: true,
+      sameSite: 'lax',
     },
   }));
 

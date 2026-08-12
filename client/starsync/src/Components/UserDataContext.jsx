@@ -52,16 +52,15 @@ export function UserDataProvider({ children }) {
     }
 
     useEffect(() => {
-        console.log('isDemo:', isDemo);
-        console.log('longTermData:', longTermData);
-        console.log('shortTermData:', shortTermData);
-        
         if (isDemo) {
             fetchDemoData();
         } else {
             fetchLongTermData();
             fetchShortTermData();
         }
+        console.log('isDemo:', isDemo);
+        console.log('longTermData:', longTermData);
+        console.log('shortTermData:', shortTermData);
     }, [isDemo]);
 
     return (
