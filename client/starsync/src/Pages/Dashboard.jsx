@@ -118,7 +118,7 @@ function Dashboard() {
                             ))}
                             </div>
                         ) : (
-                        <div className={`flex flex-col mt-50 space-y-20 text-center px-20`}>
+                        <div className={`flex flex-col ${mobile ? "mt-20" : "mt-50" } space-y-20 text-center px-20`}>
                             <div className="text-2xl font-semibold mt-6 text-pink-100">
                                 We couldn't find any data...
                             </div>
