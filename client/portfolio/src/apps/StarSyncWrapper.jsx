@@ -5,7 +5,7 @@ export default function StarSyncWrapper() {
   const navigate = useNavigate();
 
   return (
-    <div className="relative w-full h-screen overflow-hidden">
+    <div className="fixed inset-0 overflow-hidden">
       <StarSyncApp onExit={() => navigate("/")} />
     </div>
   );

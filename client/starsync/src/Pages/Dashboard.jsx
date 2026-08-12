@@ -32,7 +32,7 @@ function Dashboard() {
     }
 
     return (
-        <div className="relative flex flex-col items-center min-h-screen w-screen bg-gradient-to-t from-pink-950 to-indigo-950">
+        <div className="relative flex flex-col items-center min-h-screen w-full bg-gradient-to-t from-pink-950 to-indigo-950">
             <Menu />
             <div className={`flex justify-center ${mobile ? "w-50" : "w-full"}`}>
                 <div className="flex flex-col text-center justify-center items-center">
@@ -72,7 +72,7 @@ function Dashboard() {
                 </div>
             </div>
 
-            <div className="w-full max-w-screen">
+            <div className="w-full relative">
                 {views.map((view, i) => (
                     <div key = {i}
                     className={`inset-0 transition-opacity duration-500
