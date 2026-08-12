@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { ChevronLeftIcon, ChevronRightIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import useMobile from '@shared/hooks/useMobile';
 
 import Annecy from '../assets/images/annecy.jpg';
 import Backpack from '../assets/images/backpack.jpg';
@@ -20,6 +21,7 @@ export default function ImageCarousel({ dimmed = false, isDark = false, captions
   const [currentIndex, setCurrentIndex] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
   const [closing, setClosing] = useState(false);
+  const mobile = useMobile();
 
   const textColor = isDark ? "text-white/30" : "text-black/30";
   const textColorMid = isDark ? "text-white/50" : "text-black/50";
@@ -65,7 +67,7 @@ export default function ImageCarousel({ dimmed = false, isDark = false, captions
           </p>
         </div>
 
-        <div className="relative w-[450px] h-[450px] flex items-center justify-center">
+        <div className={`${mobile ? "w-[400px] h-[400px]" : "w-[450px] h-[450px]"}relative flex items-center justify-center`}>
           <img
             key={currentIndex}
             src={image}
