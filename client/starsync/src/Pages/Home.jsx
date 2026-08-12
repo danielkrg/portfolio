@@ -10,7 +10,6 @@ function Home({ preview = false }) {
   const [displayedText, setDisplayedText] = useState('');
   const [phase, setPhase] = useState('typing');
   const { setIsDemo } = useUserData();
-  const api = import.meta.env.VITE_API_BASE_URL;
 
   const handleExit = () => {
     navigate("../");
@@ -60,7 +59,7 @@ function Home({ preview = false }) {
   const handleLogin = () => {
     localStorage.setItem('demoMode', 'false');
     setIsDemo(false);
-    window.location.href = `${api}/api/starsync/login`;
+    window.location.href = `/api/starsync/login`;
   };
 
   const handleDemo= () => {
