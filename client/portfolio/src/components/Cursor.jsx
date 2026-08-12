@@ -11,6 +11,9 @@ const SELECTORS = [
 ];
 
 export default function Cursor({ dark = false }) {
+  const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+  if (isTouchDevice) return null;
+  
   const [pos, setPos] = useState({ x: -100, y: -100 });
   const [state, setState] = useState("default");
   const color = dark ? "white" : "black";

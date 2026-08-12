@@ -105,7 +105,7 @@ export default function Home({ isDark, setIsDark, isFrench, setIsFrench }) {
         <section id="portfolio" className={`pb-15 pt-34 flex justify-between ${mobile ? "flex-col gap-10" : ""}`}>
           <div>
             <h1 className="pb-6">
-              <span className={c.hero.name.style.replace('text-7xl', 'text-4xl md:text-7xl')}>{c.hero.name.value}</span><br />
+              <span className={c.hero.name.style.replace('text-7xl', 'text-5xl md:text-7xl')}>{c.hero.name.value}</span><br />
               <span className={c.hero.title.style}>{c.hero.title.value}</span><br />
             </h1>
             <p className={`${c.hero.subtitle.style} mt-6`}>
