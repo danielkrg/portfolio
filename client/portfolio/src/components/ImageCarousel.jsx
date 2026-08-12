@@ -135,9 +135,9 @@ export default function ImageCarousel({ dimmed = false, isDark = false, captions
 
           <button
             onClick={(e) => change("left", e)}
-            className="absolute left-6 text-white/50 hover:text-white transition-colors duration-200 cursor-pointer"
+            className={`${mobile ? "left-3" : "left-6"} absolute text-white/50 hover:text-white transition-colors duration-200 cursor-pointer`}
           >
-            <ChevronLeftIcon className={`${mobile ? "h-5 w-5" : "h-10 w-10"}`} />
+            <ChevronLeftIcon className={`${mobile ? "h-20 w-7" : "h-10 w-10"}`} />
           </button>
 
           <div
@@ -156,9 +156,9 @@ export default function ImageCarousel({ dimmed = false, isDark = false, captions
 
           <button
             onClick={(e) => change("right", e)}
-            className="absolute right-6 text-white/50 hover:text-white transition-colors duration-200 cursor-pointer"
+            className={`${mobile ? "right-3" : "right-6"} absolute text-white/50 hover:text-white transition-colors duration-200 cursor-pointer`}
           >
-            <ChevronRightIcon className={`${mobile ? "h-5 w-5" : "h-10 w-10"}`} />
+            <ChevronRightIcon className={`${mobile ? "h-20 w-7" : "h-10 w-10"}`} />
           </button>
         </div>
       )}
