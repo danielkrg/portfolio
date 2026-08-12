@@ -99,10 +99,6 @@ export default function Home({ isDark, setIsDark, isFrench, setIsFrench }) {
                     }
                   </button>
                 </div>
-
-                {/* Divider */}
-                <div className={`w-12 h-px ${isDark ? "bg-white/20" : "bg-black/10"}`} />
-
                 <div className="flex items-center gap-8">
                   {c.nav.links.map((link) => (
                     <button
@@ -121,7 +117,7 @@ export default function Home({ isDark, setIsDark, isFrench, setIsFrench }) {
         {/* Mobile dropdown */}
         {mobile && menuOpen && (
           <div className={`fixed left-0 right-0 mt-26 z-50 border-b ${theme.border} px-10 py-6 flex flex-col gap-6 backdrop-blur-sm 
-                transition-colors duration-500 ${starSyncHovered ? "bg-black/30" : theme.navBg}`}>
+                animate-fadeInOtFast transition-colors duration-500 ${starSyncHovered ? "bg-black/30" : theme.navBg}`}>
             {c.nav.links.map((link) => (
               <button
                 key={link.value}
