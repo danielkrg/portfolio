@@ -16,21 +16,16 @@ router.get('/login', (req, res) => {
 });
 
 router.get('/checkAuth', (req, res) => {
-    console.log('checkAuth sessionID:', req.sessionID);
-    console.log('checkAuth accessToken:', !!req.session.accessToken);
     if (req.session.accessToken) {
-        res.json({ authenticated: true });
+      res.json({ authenticated: true, token: req.session.accessToken });
     } else {
-        res.json({ authenticated: false });
+      res.json({ authenticated: false });
     }
-});
+  });
 
 router.get('/callback', async (req, res) => {
-    console.log('callback hit, code:', !!req.query.code);
-    console.log('callback sessionID:', req.sessionID);
     const code = req.query.code;
     try {
-      console.log('exchanging code for token...');
       const response = await axios.post(
         'https://accounts.spotify.com/api/token',
         new URLSearchParams({
@@ -42,18 +37,8 @@ router.get('/callback', async (req, res) => {
         }),
         { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
       );
-      console.log('token received:', !!response.data.access_token);
-      req.session.accessToken = response.data.access_token;
-      console.log('session before save:', req.sessionID, !!req.session.accessToken);
-      
-      req.session.save((err) => {
-        console.log('save callback fired, err:', err);
-        console.log('Set-Cookie:', res.getHeader('Set-Cookie'));
-        if (err) {
-          return res.redirect(`${FRONTEND_URL}/apps/starsync/error`);
-        }
-        res.redirect(`${FRONTEND_URL}/apps/starsync/dashboard`);
-      });
+      const accessToken = response.data.access_token;
+      res.redirect(`${FRONTEND_URL}/apps/starsync/dashboard?token=${accessToken}`);
     } catch (error) {
       console.error('callback error:', error.response?.data || error.message);
       res.redirect(`${FRONTEND_URL}/apps/starsync/error`);
@@ -61,10 +46,10 @@ router.get('/callback', async (req, res) => {
   });
 
 router.get('/userdata', async (req, res) => {
-    const accessToken = req.session.accessToken;
+    const accessToken = req.headers.authorization?.replace('Bearer ', '');
     const timeRange = req.query.time_range || 'long_term';
     if (!accessToken) {
-        return res.redirect(`${FRONTEND_URL}/apps/starsync/error`);
+        return res.status(401).json({ error: 'No token' });
     }
     try {
         const [profileNameResponse, tracksResponse, artistsResponse, playlistResponse] = await Promise.all([
@@ -104,7 +89,7 @@ router.get('/userdata', async (req, res) => {
         });
     } catch (error) {
         console.error('Error fetching data:', error.response?.data || error.message);
-        res.redirect(`${FRONTEND_URL}/apps/starsync/error`);
+        res.status(500).json({ error: 'Failed to fetch data' });
     }
 });
 
