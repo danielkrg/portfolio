@@ -45,7 +45,7 @@ export default function ImageCarousel({ dimmed = false, isDark = false, captions
   };
 
   useEffect(() => {
-    slides.forEach(({ image }) => {
+    images.forEach(({ image }) => {
       const img = new Image();
       img.src = image;
     });
