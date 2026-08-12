@@ -133,7 +133,7 @@ function Horoscope() {
                 <div className="flex flex-col items-center justify-center">
                     <button onClick={(phase !== 'done' && phase !== '') ? handleSkip : handleRegenerate} 
                     className="cursor-pointer text-pink-500 border-pink-500 border-2 hover:border-green-500 hover:text-green-500
-                    font-semibold py-2 px-4 w-35 rounded-full transition-all duration-300 ease-in-out
+                    font-semibold py-2 px-4 w-35 rounded-full transition-all duration-300 ease-in-out mb-25 mt-10
                     hover:shadow-[0_0_10px_2px_rgba(29,185,84,0.6)]">
                         <span
                         key={phase}
