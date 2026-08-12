@@ -49,6 +49,9 @@ export default function ImageCarousel({ dimmed = false, isDark = false, captions
       const img = new Image();
       img.src = image;
     });
+  }, []);
+
+  useEffect(() => {
     if (!fullscreen) return;
     const handleKey = (e) => {
       if (e.key === 'ArrowLeft') change('left');
