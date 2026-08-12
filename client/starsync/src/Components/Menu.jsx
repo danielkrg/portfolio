@@ -33,7 +33,7 @@ function Menu() {
       </button>
 
       {isOpen && (
-        <div className={`flex ${mobile ? "justify-between gap-5 items-center text-sm max-w-3/4" : "flex-col space-y-5 mt-2"} text-pink-100/40`}>
+        <div className={`flex ${mobile ? "justify-between gap-3 items-center text-sm max-w-5/6" : "flex-col space-y-5 mt-2"} text-pink-100/40`}>
           <Link
             to="../dashboard"
             className="hover:text-green-500 transition-all ease-in-out duration-300"
