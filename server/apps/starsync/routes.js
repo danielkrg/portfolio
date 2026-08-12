@@ -38,7 +38,15 @@ router.get('/callback', async (req, res) => {
             { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
         );
         req.session.accessToken = response.data.access_token;
-        res.redirect(`${FRONTEND_URL}/apps/starsync/dashboard`);
+        req.session.save((err) => {
+            if (err) {
+              console.error('Session save error:', err);
+              return res.redirect(`${FRONTEND_URL}/apps/starsync/error`);
+            }
+            console.log('Session saved, sessionID:', req.sessionID);
+            console.log('Access token set:', !!req.session.accessToken);
+            res.redirect(`${FRONTEND_URL}/apps/starsync/dashboard`);
+        });
     } catch (error) {
         console.error('Error getting token:', error.response?.data || error.message);
         res.redirect(`${FRONTEND_URL}/apps/starsync/error`);
