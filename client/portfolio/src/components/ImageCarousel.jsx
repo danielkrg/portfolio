@@ -68,13 +68,13 @@ export default function ImageCarousel({ dimmed = false, isDark = false, captions
   return (
     <>
       <div className="relative flex flex-col items-center mt-5">
-        <div className="absolute top-1 right-1">
-          <p className={`text-sm font-extralight ${textColor}`}>
+        <div className="top-1 right-1 absolute">
+          <p className={`${mobile ? "text-xs" : "text-sm" } font-extralight ${textColor}`}>
             {`${currentIndex + 1} / ${images.length}`}
           </p>
         </div>
 
-        <div className={`${mobile ? "w-[400px] h-[400px]" : "w-[450px] h-[450px]"} relative flex items-center justify-center`}>
+        <div className={`${mobile ? "w-[375px] h-[375px]" : "w-[450px] h-[450px]"} relative flex items-center justify-center`}>
           <img
             key={currentIndex}
             src={image}
