@@ -50,6 +50,7 @@ const buildContent = (t) => ({
     projects: {
       sectionLabel: { value: "Projects", style: t.sectionLabel },
       heading: { value: "My Projects", style: t.title },
+      mobileHelper: { value: "Click project to enter", style: t.small },
       items: [
         { index: { value: "01", style: t.rowNum }, name: { value: "StarSync", style: t.rowText }, stack: { value: "React / Express / Spotify API", style: t.rowText }, year: { value: "2025", style: t.rowNum } },
         { index: { value: "02", style: t.rowNum }, name: { value: "Coming Soon", style: t.rowText }, stack: null, year: { value: "2026", style: t.rowNum } },
@@ -114,6 +115,7 @@ const buildContent = (t) => ({
     projects: {
       sectionLabel: { value: "Projets", style: t.sectionLabel },
       heading: { value: "Mes Projets", style: t.title },
+      mobileHelper: { value: "Cliquez sur le projet pour y accéder", style: t.small },
       items: [
         { index: { value: "01", style: t.rowNum }, name: { value: "StarSync", style: t.rowText }, stack: { value: "React / Express / Spotify API", style: t.rowText }, year: { value: "2025", style: t.rowNum } },
         { index: { value: "02", style: t.rowNum }, name: { value: "À Venir", style: t.rowText }, stack: null, year: { value: "2026", style: t.rowNum } },
