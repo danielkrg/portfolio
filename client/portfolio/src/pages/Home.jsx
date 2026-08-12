@@ -47,7 +47,7 @@ export default function Home({ isDark, setIsDark, isFrench, setIsFrench }) {
         }}
       />
 
-      <div className="relative max-w-7xl mx-auto px-10 animate-fadeInMed"
+      <div className="relative max-w-7xl mx-auto px-5 animate-fadeInMed"
           style={{
             zIndex: 1,
             opacity: translating ? 0 : 1,
