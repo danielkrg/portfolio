@@ -116,36 +116,35 @@ export default function Home({ isDark, setIsDark, isFrench, setIsFrench }) {
         </nav>
         {/* Mobile dropdown */}
         {mobile && menuOpen && (
-          <div className={`fixed left-0 right-0 mt-26 z-50 border-b ${theme.border} px-10 py-6 flex flex-col gap-6 backdrop-blur-sm 
+          <div className={`fixed left-0 right-0 mt-26 z-50 border-b ${theme.border} px-10 py-6 flex justify-between gap-6 backdrop-blur-sm 
                 animate-fadeInOtFast transition-colors duration-500 ${starSyncHovered ? "bg-black/30" : theme.navBg}`}>
+            <div className="flex items-center gap-10">
+              <button
+                onClick={toggleLanguage}
+                className={`text-xs tracking-widest font-medium transition-colors duration-200 cursor-pointer
+                          ${theme.textSecondary} ${theme.textHover}`}
+              >
+                {isFrench ? "FR" : "EN"}
+              </button>
+              <button
+                onClick={() => setIsDark((prev) => !prev)}
+                className={`transition-colors duration-200 cursor-pointer ${theme.textSecondary} ${theme.textHover}`}
+              >
+                {isDark
+                  ? <MoonIcon className="h-5 w-5" />
+                  : <SunIcon className="h-5 w-5" />
+                }
+              </button>
+            </div>
             {c.nav.links.map((link) => (
               <button
                 key={link.value}
                 onClick={() => { scrollTo(link.value); setMenuOpen(false); }}
-                className={`${link.style} ${theme.textHover} transition-colors duration-200 cursor-pointer text-left`}
+                className={`${link.style} ${theme.textHover} transition-colors duration-200 cursor-pointer`}
               >
                 {link.value}
               </button>
             ))}
-            <div className={`w-full h-px ${isDark ? "bg-white/20" : "bg-black/10"}`} />
-              <div className="flex items-center gap-6">
-                <button
-                  onClick={toggleLanguage}
-                  className={`text-xs tracking-widest font-medium transition-colors duration-200 cursor-pointer
-                            ${theme.textSecondary} ${theme.textHover}`}
-                >
-                  {isFrench ? "FR" : "EN"}
-                </button>
-                <button
-                  onClick={() => setIsDark((prev) => !prev)}
-                  className={`transition-colors duration-200 cursor-pointer ${theme.textSecondary} ${theme.textHover}`}
-                >
-                  {isDark
-                    ? <MoonIcon className="h-5 w-5" />
-                    : <SunIcon className="h-5 w-5" />
-                  }
-                </button>
-              </div>
           </div>
         )}
 
