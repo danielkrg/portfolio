@@ -1,7 +1,7 @@
 import { light } from './theme';
 
 export const createText = (theme = light) => ({
-  title:        `text-7xl font-bold tracking-wide leading-none ${theme.textPrimary}`,
+  title:        `text-7xl font-extrabold tracking-wide leading-none ${theme.textPrimary}`,
   titleAlt:     `text-7xl font-bold tracking-wide leading-none ${theme.textSecondary}`,
   subtitle:     `text-5xl font-bold leading-tight tracking-normal ${theme.textPrimary}`,
   subtitleAlt:     `text-5xl font-bold leading-tight tracking-normal ${theme.textSecondary}`,
