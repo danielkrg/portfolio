@@ -8,7 +8,6 @@ const UserDataContext = createContext();
 
 export function UserDataProvider({ children }) {
     const navigate = useNavigate();
-    const api = import.meta.env.VITE_API_URL;
     const [longTermData, setLongTermData] = useState(null);
     const [shortTermData, setShortTermData] = useState(null);
     const [isDemo, setIsDemo] = useState(() => localStorage.getItem('demoMode') === 'true');
@@ -17,13 +16,13 @@ export function UserDataProvider({ children }) {
     const fetchLongTermData = async () => {
         try {
             console.log('fetching auth check...');
-            const authCheck = await axios.get(`${api}/api/starsync/checkAuth`, { withCredentials: true });
+            const authCheck = await axios.get(`/api/starsync/checkAuth`, { withCredentials: true });
             console.log('authCheck:', authCheck.data);
             if (!authCheck.data.authenticated) {
                 return;
             }
             console.log('fetching userdata...');
-            const response = await axios.get(`${api}/api/starsync/userdata?time_range=long_term`, { withCredentials: true });
+            const response = await axios.get(`/api/starsync/userdata?time_range=long_term`, { withCredentials: true });
             console.log('userdata:', response.data);
             setLongTermData(response.data);
         } catch (error) {
@@ -35,10 +34,10 @@ export function UserDataProvider({ children }) {
     // Function to fetch short-term data
     const fetchShortTermData = async () => {
         try {
-            const authCheck = await axios.get(`${api}/api/starsync/checkAuth`, { withCredentials: true });
+            const authCheck = await axios.get(`/api/starsync/checkAuth`, { withCredentials: true });
             if (!authCheck.data.authenticated) return;
             
-            const response = await axios.get(`${api}/api/starsync/userdata?time_range=short_term`, { withCredentials: true });
+            const response = await axios.get(`/api/starsync/userdata?time_range=short_term`, { withCredentials: true });
             setShortTermData(response.data);
         } catch (error) {
             console.error("Error fetching short-term user data:", error);

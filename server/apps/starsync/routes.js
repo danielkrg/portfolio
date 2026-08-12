@@ -16,6 +16,8 @@ router.get('/login', (req, res) => {
 });
 
 router.get('/checkAuth', (req, res) => {
+    console.log('checkAuth sessionID:', req.sessionID);
+    console.log('checkAuth accessToken:', !!req.session.accessToken);
     if (req.session.accessToken) {
         res.json({ authenticated: true });
     } else {
