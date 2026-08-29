@@ -107,7 +107,9 @@ export default function Home({ isDark, setIsDark, isFrench, setIsFrench }) {
         <section id="projects" className={`pb-30 pt-10 border-t ${theme.border} transition-colors duration-500`}>
           <p className={`${c.projects.sectionLabel.style} mb-12`}>{c.projects.sectionLabel.value}</p>
           <p className={`${c.projects.heading.style} mb-5`}>{c.projects.heading.value}</p>
-          {mobile ? (<p className={`${c.projects.mobileHelper.style} italic mb-20`}>{c.projects.mobileHelper.value}</p>) : <></>}
+            {mobile ? (<p className={`${c.projects.mobileHelper.style} italic mb-20`}>{c.projects.mobileHelper.value}</p>) 
+              : <p className='mb20'></p>
+            }
           <div className="flex flex-col">
             {c.projects.items.map((item, i) => (
               <div
