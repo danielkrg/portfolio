@@ -108,7 +108,7 @@ export default function Home({ isDark, setIsDark, isFrench, setIsFrench }) {
           <p className={`${c.projects.sectionLabel.style} mb-12`}>{c.projects.sectionLabel.value}</p>
           <p className={`${c.projects.heading.style} mb-5`}>{c.projects.heading.value}</p>
             {mobile ? (<p className={`${c.projects.mobileHelper.style} italic mb-20`}>{c.projects.mobileHelper.value}</p>) 
-              : <p className='mb20'></p>
+              : <p className='mb-20'></p>
             }
           <div className="flex flex-col">
             {c.projects.items.map((item, i) => (
