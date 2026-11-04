@@ -63,7 +63,7 @@ const buildContent = (t) => ({
         { label: { value: "Email", style: t.body }, href: "mailto:danielkrg11@gmail.com" },
         { label: { value: "LinkedIn", style: t.body }, href: "https://linkedin.com/in/daniel-krouguerski-72564718a" },
         { label: { value: "GitHub", style: t.body }, href: "https://github.com/danielkrg" },
-        { label: { value: "Resume", style: t.body }, href: "/resume.pdf" },
+        { label: { value: "Resume", style: t.body }, href: "/cv-en.pdf" },
       ],
     },
     footer: {
@@ -128,7 +128,7 @@ const buildContent = (t) => ({
         { label: { value: "Email", style: t.body }, href: "mailto:danielkrg11@gmail.com" },
         { label: { value: "LinkedIn", style: t.body }, href: "https://linkedin.com/in/daniel-krouguerski-72564718a" },
         { label: { value: "GitHub", style: t.body }, href: "https://github.com/danielkrg" },
-        { label: { value: "CV", style: t.body }, href: "/resume.pdf" },
+        { label: { value: "CV", style: t.body }, href: "/cv-fr.pdf" },
       ],
     },
     footer: {
