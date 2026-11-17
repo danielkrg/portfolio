@@ -24,8 +24,12 @@ export interface PhotoGateway {
   listPhotos(): Promise<Photo[]>;
 }
 
-// Owner-namespaced asset folder (ADR-0002: photos/<userId>/…, single user `me` for now).
-const OWNER_PREFIX = 'photos/me';
+// Owner-namespaced asset folder (ADR-0002: photos/<userId>/…, single user `me`
+// for now). This is a Cloudinary *asset folder*, not a public_id prefix: the
+// account uses dynamic folders, where an asset's public_id is independent of the
+// folder it lives in (a Media-Library upload to photos/me keeps a bare public_id
+// like "DSCF6913"), so we list by asset_folder, not by public_id prefix.
+const OWNER_FOLDER = 'photos/me';
 
 // Unpositioned Photos sort after positioned ones, deterministically by id.
 const UNSET_POSITION = Number.MAX_SAFE_INTEGER;
@@ -80,9 +84,7 @@ function byMasterOrder(a: Photo, b: Photo): number {
 export const cloudinaryGateway: PhotoGateway = {
   async listPhotos(): Promise<Photo[]> {
     ensureConfigured();
-    const result = await cloudinary.api.resources({
-      type: 'upload',
-      prefix: OWNER_PREFIX,
+    const result = await cloudinary.api.resources_by_asset_folder(OWNER_FOLDER, {
       max_results: 500,
       context: true,
       tags: true,
