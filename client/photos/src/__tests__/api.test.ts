@@ -2,14 +2,21 @@ import { describe, it, expect } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { createPhotosRouter } from '../../../../server/apps/photos/routes';
+import { createAuth } from '../../../../server/apps/photos/auth';
 import type { Photo, PhotoGateway } from '../../../../server/apps/photos/cloudinary-gateway';
+
+// A throwaway auth seam; these tests exercise only the public, unauthenticated
+// list endpoint, so the password/secret values never matter here.
+function testAuth() {
+  return createAuth({ jwtSecret: 'test-secret', passwordHash: '', userId: 'me', isProd: false });
+}
 
 // The router is exercised at the HTTP seam with a FAKE gateway standing in for
 // Cloudinary (ADR-0001), so the contract is asserted without network or creds.
 function makeApp(gateway: PhotoGateway) {
   const app = express();
   app.use(express.json());
-  app.use('/api/photos', createPhotosRouter(gateway));
+  app.use('/api/photos', createPhotosRouter(gateway, testAuth()));
   return app;
 }
 
