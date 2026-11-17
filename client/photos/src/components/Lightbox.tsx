@@ -1,7 +1,7 @@
 import { useEffect, useState, type MouseEvent } from 'react';
 import { ChevronLeftIcon, ChevronRightIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { stepIndex } from '../lib/paging';
-import type { Photo } from '../types';
+import type { Photo, PhotosTheme } from '../types';
 
 interface LightboxProps {
   /** The currently displayed set; paging moves through exactly these. */
@@ -10,6 +10,8 @@ interface LightboxProps {
   index: number;
   onIndexChange: (index: number) => void;
   onClose: () => void;
+  /** Resolved portfolio theme, so the viewer matches the gallery's palette. */
+  theme: PhotosTheme;
 }
 
 const CLOSE_MS = 500;
@@ -17,10 +19,13 @@ const CLOSE_MS = 500;
 /**
  * Full-screen viewer, reimplementing the portfolio's hand-rolled lightbox in
  * TypeScript (ticket #5). Chevrons + ArrowLeft/ArrowRight page through the
- * displayed set (wrapping); Escape or the close control exits; the full-res
- * image carries the global `data-cursor="image"` "+" cursor.
+ * displayed set (wrapping); Escape or the close control exits. The full-res
+ * image is inert to the global custom cursor (no "+" expansion). The backdrop is
+ * a flat fill in the active theme colour (not a dimmed overlay), the caption sits
+ * inline with the close control and counter, and the image fills nearly the
+ * full height.
  */
-export default function Lightbox({ photos, index, onIndexChange, onClose }: LightboxProps) {
+export default function Lightbox({ photos, index, onIndexChange, onClose, theme }: LightboxProps) {
   const [closing, setClosing] = useState(false);
 
   const page = (delta: number) => onIndexChange(stepIndex(index, delta, photos.length));
@@ -51,7 +56,7 @@ export default function Lightbox({ photos, index, onIndexChange, onClose }: Ligh
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 animate-fadeInFast"
+      className={`fixed inset-0 z-50 flex items-center justify-center animate-fadeInFast ${theme.bg}`}
       style={{ opacity: closing ? 0 : undefined, transition: `opacity ${CLOSE_MS}ms ease` }}
       onClick={close}
       role="dialog"
@@ -64,12 +69,20 @@ export default function Lightbox({ photos, index, onIndexChange, onClose }: Ligh
           close();
         }}
         aria-label="Close"
-        className="absolute top-5 left-5 text-white/50 hover:text-white transition-colors duration-200 cursor-pointer"
+        className={`absolute top-5 left-5 transition-colors duration-200 cursor-pointer ${theme.textSecondary} ${theme.textHover}`}
       >
         <XMarkIcon className="h-8 w-8" />
       </button>
 
-      <p className="absolute top-5 right-5 text-sm text-white/50">
+      {photo.caption && (
+        <p
+          className={`absolute top-5 left-1/2 -translate-x-1/2 max-w-[60vw] truncate text-center text-sm font-light tracking-normal ${theme.textSecondary}`}
+        >
+          {photo.caption}
+        </p>
+      )}
+
+      <p className={`absolute top-5 right-5 text-sm ${theme.textSecondary}`}>
         {index + 1} / {photos.length}
       </p>
 
@@ -79,24 +92,18 @@ export default function Lightbox({ photos, index, onIndexChange, onClose }: Ligh
           page(-1);
         }}
         aria-label="Previous photo"
-        className="absolute left-3 sm:left-6 text-white/50 hover:text-white transition-colors duration-200 cursor-pointer"
+        className={`absolute left-3 sm:left-6 transition-colors duration-200 cursor-pointer ${theme.textSecondary} ${theme.textHover}`}
       >
         <ChevronLeftIcon className="h-10 w-10" />
       </button>
 
-      <figure className="flex flex-col items-center gap-6 px-16 sm:px-24" onClick={stop}>
+      <figure className="flex items-center justify-center px-16 pt-16 pb-6 sm:px-24" onClick={stop}>
         <img
           key={photo.id}
           src={photo.url}
           alt={photo.alt ?? photo.caption ?? ''}
-          data-cursor="image"
-          className="max-h-[80vh] max-w-[80vw] object-contain animate-fadeInFast"
+          className="max-h-[90vh] max-w-[88vw] object-contain animate-fadeInFast"
         />
-        {photo.caption && (
-          <figcaption className="text-white/50 font-light tracking-normal text-center">
-            {photo.caption}
-          </figcaption>
-        )}
       </figure>
 
       <button
@@ -105,7 +112,7 @@ export default function Lightbox({ photos, index, onIndexChange, onClose }: Ligh
           page(1);
         }}
         aria-label="Next photo"
-        className="absolute right-3 sm:right-6 text-white/50 hover:text-white transition-colors duration-200 cursor-pointer"
+        className={`absolute right-3 sm:right-6 transition-colors duration-200 cursor-pointer ${theme.textSecondary} ${theme.textHover}`}
       >
         <ChevronRightIcon className="h-10 w-10" />
       </button>

@@ -67,7 +67,7 @@ export default function Gallery({ isDark, setIsDark, theme, onExit }: PhotosAppP
           <p className={theme.textSecondary}>No photos yet — the gallery is coming soon.</p>
         )}
         {load.status === 'ready' && load.photos.length > 0 && (
-          <PhotoGrid photos={load.photos} />
+          <PhotoGrid photos={load.photos} theme={theme} />
         )}
       </div>
     </div>

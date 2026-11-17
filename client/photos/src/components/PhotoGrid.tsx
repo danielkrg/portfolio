@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { deriveOrientation } from '../lib/orientation';
 import { columnsForWidth, toBlocks, toColumns } from '../lib/masonry';
 import Lightbox from './Lightbox';
-import type { Photo } from '../types';
+import type { Photo, PhotosTheme } from '../types';
 
 function useColumnCount(): number {
   const [count, setCount] = useState(() =>
@@ -21,7 +21,7 @@ function PhotoFigure({ photo, onOpen }: { photo: Photo; onOpen: () => void }) {
     <figure
       data-cursor="image"
       data-orientation={deriveOrientation(photo.width, photo.height)}
-      className="overflow-hidden rounded-sm"
+      className="overflow-hidden"
       onClick={onOpen}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -47,6 +47,7 @@ function PhotoFigure({ photo, onOpen }: { photo: Photo; onOpen: () => void }) {
 
 interface PhotoGridProps {
   photos: Photo[];
+  theme: PhotosTheme;
 }
 
 /**
@@ -54,7 +55,7 @@ interface PhotoGridProps {
  * count scales with viewport width, each Photo keeps its true aspect ratio, and
  * ultra-wide Photos span the full width as their own row.
  */
-export default function PhotoGrid({ photos }: PhotoGridProps) {
+export default function PhotoGrid({ photos, theme }: PhotoGridProps) {
   const columnCount = useColumnCount();
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
@@ -100,6 +101,7 @@ export default function PhotoGrid({ photos }: PhotoGridProps) {
           index={openIndex}
           onIndexChange={setOpenIndex}
           onClose={() => setOpenIndex(null)}
+          theme={theme}
         />
       )}
     </>
