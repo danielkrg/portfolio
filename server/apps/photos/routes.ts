@@ -1,16 +1,25 @@
 import { Router, type Request, type Response } from 'express';
-
-const router = Router();
+import { cloudinaryGateway, type PhotoGateway } from './cloudinary-gateway';
 
 /**
- * GET /api/photos — list all photos.
- *
- * Tracer-bullet slice: the gallery has no data source wired up yet, so this
- * always responds with an empty list. Later slices back this with Cloudinary
- * (see docs/adr/0001-cloudinary-as-system-of-record.md).
+ * Build the public Photos router around a PhotoGateway. The gateway is injected
+ * so tests can fake Cloudinary (ADR-0001); production wires the real one below.
  */
-router.get('/', (_req: Request, res: Response) => {
-  res.json({ photos: [] });
-});
+export function createPhotosRouter(gateway: PhotoGateway): Router {
+  const router = Router();
 
-export default router;
+  // GET /api/photos — public, unauthenticated list of all Photos in Master Order.
+  router.get('/', async (_req: Request, res: Response) => {
+    try {
+      const photos = await gateway.listPhotos();
+      res.json({ photos });
+    } catch (err) {
+      console.error('Failed to list photos:', err);
+      res.status(502).json({ error: 'Failed to list photos' });
+    }
+  });
+
+  return router;
+}
+
+export default createPhotosRouter(cloudinaryGateway);
