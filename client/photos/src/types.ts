@@ -25,3 +25,20 @@ export interface PhotosAppProps {
   theme: PhotosTheme;
   onExit: () => void;
 }
+
+/**
+ * A Photo as delivered by GET /api/photos (mirrors the server's Photo contract
+ * at the JSON boundary). Dimensions are raw so the grid can keep true aspect
+ * ratios and derive Orientation; Master Order is `position`.
+ */
+export interface Photo {
+  id: string;
+  url: string;
+  thumbnailUrl: string;
+  width: number;
+  height: number;
+  tags: string[];
+  caption: string | null;
+  alt: string | null;
+  position: number;
+}
