@@ -17,12 +17,12 @@ function photo(id: string, width: number, height: number): Photo {
 }
 
 describe('columnsForWidth', () => {
-  it('scales column count with viewport width at the breakpoints', () => {
+  it('scales column count with viewport width, capped at 3', () => {
     expect(columnsForWidth(500)).toBe(1);
     expect(columnsForWidth(640)).toBe(2);
     expect(columnsForWidth(1024)).toBe(3);
-    expect(columnsForWidth(1280)).toBe(4);
-    expect(columnsForWidth(2000)).toBe(4);
+    expect(columnsForWidth(1280)).toBe(3);
+    expect(columnsForWidth(2000)).toBe(3);
   });
 });
 

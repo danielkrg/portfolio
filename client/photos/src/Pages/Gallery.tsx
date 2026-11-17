@@ -42,7 +42,6 @@ export default function Gallery({ isDark, setIsDark, theme, onExit }: PhotosAppP
         <div className="flex items-center justify-between mb-16">
           <button
             onClick={onExit}
-            data-cursor="app"
             className={`text-xs tracking-widest font-medium transition-colors duration-200 cursor-pointer ${theme.textSecondary} ${theme.textHover}`}
           >
             Exit

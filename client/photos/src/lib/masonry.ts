@@ -3,10 +3,9 @@ import type { Photo } from '../types';
 // A Photo wider than this ratio spans the full grid width (panoramas).
 export const ULTRA_WIDE_RATIO = 2;
 
-/** Column count by viewport width, matching the portfolio's Tailwind breakpoints. */
+/** Column count by viewport width. Capped at 3 so Photos stay large. */
 export function columnsForWidth(width: number): number {
-  if (width >= 1280) return 4; // xl
-  if (width >= 1024) return 3; // lg
+  if (width >= 1024) return 3; // lg+
   if (width >= 640) return 2; // sm
   return 1;
 }
