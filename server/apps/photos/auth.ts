@@ -26,15 +26,26 @@ export interface SessionClaims {
   userId: string;
 }
 
+// Config values that originate from the environment are accepted as either a
+// value or a getter. Production passes getters so they are read lazily, at
+// request time — after dotenv has populated process.env. (index.js calls
+// dotenv.config() in its module body, which runs AFTER hoisted imports like
+// this module have evaluated, so reading env eagerly here would see nothing.)
+type Lazy<T> = T | (() => T);
+
+function resolve<T>(v: Lazy<T>): T {
+  return typeof v === 'function' ? (v as () => T)() : v;
+}
+
 export interface AuthConfig {
   /** Secret used to sign/verify the session JWT. */
-  jwtSecret: string;
+  jwtSecret: Lazy<string>;
   /** bcrypt hash of the Owner password (from an env var; never the plaintext). */
-  passwordHash: string;
+  passwordHash: Lazy<string>;
   /** The userId a correct password unlocks. */
   userId: string;
   /** Production tightens cookie flags; see {@link cookieOptions}. */
-  isProd: boolean;
+  isProd: Lazy<boolean>;
   /** Session lifetime; also the cookie maxAge. */
   maxAgeMs?: number;
   /** Failed-login attempts allowed per window before throttling (default 10). */
@@ -145,22 +156,22 @@ export function createAuth(config: AuthConfig): Auth {
     loginRateLimiter,
 
     async authenticate(password: string): Promise<string | null> {
-      const ok = await verifyPassword(password, config.passwordHash);
+      const ok = await verifyPassword(password, resolve(config.passwordHash));
       if (!ok) return null;
-      return signSession({ userId: config.userId }, config.jwtSecret, maxAgeMs);
+      return signSession({ userId: config.userId }, resolve(config.jwtSecret), maxAgeMs);
     },
 
     setCookieOptions() {
-      return cookieOptions(config.isProd, maxAgeMs);
+      return cookieOptions(resolve(config.isProd), maxAgeMs);
     },
 
     clearCookieOptions() {
-      return clearCookieOptions(config.isProd);
+      return clearCookieOptions(resolve(config.isProd));
     },
 
     requireOwner(req: Request, res: Response, next: NextFunction) {
       const token = (req as AuthedRequest & { cookies?: Record<string, string> }).cookies?.[SESSION_COOKIE];
-      const claims = token ? verifySession(token, config.jwtSecret) : null;
+      const claims = token ? verifySession(token, resolve(config.jwtSecret)) : null;
       if (!claims) {
         res.status(401).json({ error: 'Authentication required' });
         return;

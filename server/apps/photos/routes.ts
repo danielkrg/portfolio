@@ -73,11 +73,14 @@ export function createPhotosRouter(gateway: PhotoGateway, auth: Auth): Router {
 // Production auth seam, wired from the environment. The JWT is signed with
 // PHOTOS_JWT_SECRET; the Owner password is checked against the bcrypt hash in
 // PHOTOS_OWNER_PASSWORD_HASH. Cookie flags tighten when NODE_ENV=production.
+// Env is read lazily (getters), not at import time: index.js calls
+// dotenv.config() in its module body, which runs AFTER this module is imported,
+// so process.env is not yet populated here. Resolving at request time fixes it.
 const auth = createAuth({
-  jwtSecret: process.env.PHOTOS_JWT_SECRET ?? '',
-  passwordHash: process.env.PHOTOS_OWNER_PASSWORD_HASH ?? '',
+  jwtSecret: () => process.env.PHOTOS_JWT_SECRET ?? '',
+  passwordHash: () => process.env.PHOTOS_OWNER_PASSWORD_HASH ?? '',
   userId: OWNER_USER_ID,
-  isProd: process.env.NODE_ENV === 'production',
+  isProd: () => process.env.NODE_ENV === 'production',
 });
 
 export default createPhotosRouter(cloudinaryGateway, auth);

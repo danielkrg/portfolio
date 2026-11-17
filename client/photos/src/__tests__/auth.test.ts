@@ -145,6 +145,34 @@ describe('the write gate (stub write endpoint)', () => {
   });
 });
 
+describe('lazy config (env read at request time, not import time)', () => {
+  it('resolves passwordHash/jwtSecret getters per request', async () => {
+    // Simulates dotenv populating process.env AFTER createAuth() has run: the
+    // getter returns empty at construction and the real values only later.
+    let hash = '';
+    let secret = 'placeholder';
+    const auth = createAuth({
+      jwtSecret: () => secret,
+      passwordHash: () => hash,
+      userId: 'me',
+      isProd: false,
+    });
+    const app = express();
+    app.use(express.json());
+    app.use('/api/photos', createPhotosRouter(gateway, auth));
+
+    // Before env is "loaded", the correct password is rejected.
+    expect((await request(app).post('/api/photos/login').send({ password: PASSWORD })).status).toBe(401);
+
+    // Env arrives (as dotenv.config() would do); same auth object now works.
+    hash = PASSWORD_HASH;
+    secret = 'test-secret';
+    const res = await request(app).post('/api/photos/login').send({ password: PASSWORD });
+    expect(res.status).toBe(200);
+    expect(sessionCookie(res)).toBeDefined();
+  });
+});
+
 describe('session lifecycle', () => {
   it('reports the authenticated userId, survives a "refresh", and clears on logout', async () => {
     const agent = request.agent(makeApp());
