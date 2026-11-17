@@ -4,7 +4,7 @@ export default function NavBar({
   theme,
   c,
   mobile,
-  starSyncHovered,
+  projectHovered,
   scrollTo,
   toggleLanguage,
   isFrench,
@@ -16,7 +16,7 @@ export default function NavBar({
   return (
     <nav
       className={`fixed top-0 left-0 right-0 z-50 border-b ${theme.border} backdrop-blur-sm transition-colors duration-500
-        ${starSyncHovered ? "bg-black/30" : theme.navBg}`}
+        ${projectHovered ? "bg-black/30" : theme.navBg}`}
     >
       <div className="max-w-7xl mx-auto px-10">
         {/* Top row — always visible */}

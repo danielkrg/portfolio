@@ -6,7 +6,10 @@
         "server"
     ],
     "devDependencies": {
-        "concurrently": "^9.2.1"
+        "@types/react": "^19.3.0",
+        "@types/react-dom": "^19.3.0",
+        "concurrently": "^9.2.1",
+        "typescript": "^7.0.2"
     },
     "scripts": {
         "dev:frontend": "npm run dev -w client/portfolio",
