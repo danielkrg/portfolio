@@ -1,5 +1,6 @@
 import { createText } from '../styling/text';
 import { light, dark } from '../styling/theme';
+import galleryCover from '@shared/galleryCoverPhoto/DSCF6913.jpg';
 
 const buildContent = (t) => ({
   en: {
@@ -53,7 +54,7 @@ const buildContent = (t) => ({
       mobileHelper: { value: "Click project to enter", style: t.small },
       items: [
         { route: "/apps/starsync", index: { value: "01", style: t.rowNum }, name: { value: "StarSync", style: t.rowText }, stack: { value: "React / Express / Spotify API", style: t.rowText }, year: { value: "2025", style: t.rowNum } },
-        { route: "/apps/photos", index: { value: "02", style: t.rowNum }, name: { value: "Photos", style: t.rowText }, stack: { value: "TypeScript / Cloudinary API", style: t.rowText }, year: { value: "2026", style: t.rowNum } },
+        { route: "/apps/photos", cover: galleryCover, index: { value: "02", style: t.rowNum }, name: { value: "Photos", style: t.rowText }, stack: { value: "TypeScript / Cloudinary API", style: t.rowText }, year: { value: "2026", style: t.rowNum } },
       ],
     },
     contact: {
@@ -118,7 +119,7 @@ const buildContent = (t) => ({
       mobileHelper: { value: "Cliquez sur le projet pour y accéder", style: t.small },
       items: [
         { route: "/apps/starsync", index: { value: "01", style: t.rowNum }, name: { value: "StarSync", style: t.rowText }, stack: { value: "React / Express / Spotify API", style: t.rowText }, year: { value: "2025", style: t.rowNum } },
-        { route: "/apps/photos", index: { value: "02", style: t.rowNum }, name: { value: "Photos", style: t.rowText }, stack: { value: "TypeScript / Cloudinary API", style: t.rowText }, year: { value: "2026", style: t.rowNum } },
+        { route: "/apps/photos", cover: galleryCover, index: { value: "02", style: t.rowNum }, name: { value: "Photos", style: t.rowText }, stack: { value: "TypeScript / Cloudinary API", style: t.rowText }, year: { value: "2026", style: t.rowNum } },
       ],
     },
     contact: {

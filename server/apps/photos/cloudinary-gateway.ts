@@ -66,7 +66,9 @@ function toPhoto(resource: CloudinaryResource): Photo {
     url: resource.secure_url,
     thumbnailUrl: cloudinary.url(resource.public_id, {
       secure: true,
-      transformation: [{ width: 800, crop: 'limit', quality: 'auto', fetch_format: 'auto' }],
+      // Larger + higher quality than a true thumbnail: the grid trades a longer
+      // initial load for images that look sharp without opening the viewer.
+      transformation: [{ width: 1600, crop: 'limit', quality: 'auto:good', fetch_format: 'auto' }],
     }),
     width: resource.width,
     height: resource.height,

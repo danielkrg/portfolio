@@ -24,6 +24,12 @@ export interface PhotosAppProps {
   setIsDark: Dispatch<SetStateAction<boolean>>;
   theme: PhotosTheme;
   onExit: () => void;
+  /**
+   * Resolved URL of the gallery cover image, injected by the portfolio host
+   * (it lives in client/_shared, outside this package). Shown as the landing
+   * backdrop above the gallery so the grid can load underneath it.
+   */
+  coverUrl: string;
 }
 
 /**

@@ -9,6 +9,7 @@ import { light, dark } from '../styling/theme';
 export default function Home({ isDark, setIsDark, isFrench, setIsFrench }) {
   const navigate = useNavigate();
   const [projectHovered, setProjectHovered] = useState(false);
+  const [coverHovered, setCoverHovered] = useState(false);
   const mobile = useMobile();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -16,6 +17,11 @@ export default function Home({ isDark, setIsDark, isFrench, setIsFrench }) {
   const content = getContent(isDark);
   const c = isFrench ? content.fr : content.en;
   const [translating, setTranslating] = useState(false);
+
+  // Cover image for project rows that define one (e.g. Photos). Hovering such a
+  // row fades this in as a full-bleed background (with a horizontal inset) in
+  // place of the gradient, so entering the app is a smooth visual continuation.
+  const coverImage = c.projects.items.find((item) => item.cover)?.cover;
 
   const toggleLanguage = () => {
     setTranslating(true);
@@ -35,16 +41,31 @@ export default function Home({ isDark, setIsDark, isFrench, setIsFrench }) {
       style={{ color: projectHovered ? "rgba(255,255,255,0.5)" : undefined }}
     >
 
-      {/* Gradient overlay */}
+      {/* Gradient overlay (rows without a cover image) */}
       <div
         className="fixed inset-0 pointer-events-none"
         style={{
           background: "linear-gradient(to top, #500724, #1e1b4b)",
-          opacity: projectHovered ? 1 : 0,
+          opacity: projectHovered && !coverHovered ? 1 : 0,
           transition: "opacity 500ms ease",
           zIndex: 0,
         }}
       />
+
+      {/* Cover-image overlay (rows that define a cover, e.g. Photos). */}
+      {coverImage && (
+        <div
+          className="fixed inset-y-0 pointer-events-none bg-cover bg-center"
+          style={{
+            left: 0,
+            right: 0,
+            backgroundImage: `url(${coverImage})`,
+            opacity: coverHovered ? 1 : 0,
+            transition: "opacity 500ms ease",
+            zIndex: 0,
+          }}
+        />
+      )}
 
       <div className="relative max-w-7xl mx-auto px-5 animate-fadeInMed"
           style={{
@@ -118,19 +139,25 @@ export default function Home({ isDark, setIsDark, isFrench, setIsFrench }) {
                            transition-colors duration-200
                            ${mobile ? "text-sm" : "text-m"}
                            ${item.route ? "group" : ""}`}
-                onMouseEnter={item.route ? () => setProjectHovered(true) : undefined}
-                onMouseLeave={item.route ? () => setProjectHovered(false) : undefined}
+                onMouseEnter={item.route ? () => {
+                  setProjectHovered(true);
+                  setCoverHovered(Boolean(item.cover));
+                } : undefined}
+                onMouseLeave={item.route ? () => {
+                  setProjectHovered(false);
+                  setCoverHovered(false);
+                } : undefined}
                 data-cursor={item.route ? "app" : undefined}
                 onClick={item.route ? () => navigate(item.route) : undefined}
               >
                 <span className={`${item.index.style} group-hover:text-white transition-colors duration-200 pl-5`}>
                   {item.index.value}
                 </span>
-                <div className="flex items-center justify-between flex-1 group-hover:text-white transition-colors duration-200 pr-5">
-                  <p className={`${item.name.style} group-hover:text-white transition-colors duration-200`}>
+                <div className="flex items-center flex-1 group-hover:text-white transition-colors duration-200 pr-5">
+                  <p className={`${item.name.style} flex-1 group-hover:text-white transition-colors duration-200`}>
                     {item.name.value}
                   </p>
-                  {item.stack && <p className={`${item.name.style} group-hover:text-white transition-colors duration-200`}>
+                  {item.stack && <p className={`${item.name.style} flex-1 text-left group-hover:text-white transition-colors duration-200`}>
                     {item.stack.value}
                   </p>}
                   <p className={`${item.name.style} group-hover:text-white transition-colors duration-200`}>

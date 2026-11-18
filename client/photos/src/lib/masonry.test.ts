@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { columnsForWidth, isUltraWide, toBlocks, toColumns } from './masonry';
+import { columnSpan, columnsForWidth } from './masonry';
 import type { Photo } from '../types';
 
 function photo(id: string, width: number, height: number): Photo {
@@ -26,41 +26,21 @@ describe('columnsForWidth', () => {
   });
 });
 
-describe('isUltraWide', () => {
-  it('flags Photos wider than 2:1', () => {
-    expect(isUltraWide(photo('pano', 2200, 1000))).toBe(true);
-    expect(isUltraWide(photo('wide', 1800, 1000))).toBe(false); // 1.8:1
-    expect(isUltraWide(photo('exactly2', 2000, 1000))).toBe(false); // not strictly > 2
+describe('columnSpan (widen by aspect ratio)', () => {
+  it('keeps squares, portraits, and mild landscapes to a single column', () => {
+    expect(columnSpan(photo('square', 1000, 1000))).toBe(1);
+    expect(columnSpan(photo('portrait', 800, 1000))).toBe(1);
+    expect(columnSpan(photo('elevenEightHalf', 1100, 850))).toBe(1); // 1.29:1
+    expect(columnSpan(photo('sevenFive', 1400, 1000))).toBe(1); // 1.4:1, just under the cut
   });
-});
 
-describe('toColumns (row-major Master Order)', () => {
-  it('lays the top row left-to-right in order, then the next row', () => {
-    const photos = ['a', 'b', 'c', 'd', 'e'].map((id) => photo(id, 1000, 1000));
-    const columns = toColumns(photos, 3);
-
-    // Top row reads a,b,c across; d,e begin the next row under a,b.
-    expect(columns.map((col) => col.map((p) => p.id))).toEqual([
-      ['a', 'd'],
-      ['b', 'e'],
-      ['c'],
-    ]);
+  it('widens 3:2 and wider landscapes to two columns', () => {
+    expect(columnSpan(photo('threeTwo', 1500, 1000))).toBe(2); // 1.5:1
+    expect(columnSpan(photo('sixteenNine', 1600, 900))).toBe(2); // 1.78:1
   });
-});
 
-describe('toBlocks (ultra-wide segmentation)', () => {
-  it('breaks the run at each panorama so it never sits inside a column', () => {
-    const photos = [
-      photo('a', 1000, 1000),
-      photo('b', 1000, 1000),
-      photo('pano', 3000, 1000),
-      photo('c', 1000, 1000),
-    ];
-
-    expect(toBlocks(photos)).toEqual([
-      { kind: 'run', photos: [photos[0], photos[1]] },
-      { kind: 'wide', photo: photos[2] },
-      { kind: 'run', photos: [photos[3]] },
-    ]);
+  it('spans panoramas across three columns', () => {
+    expect(columnSpan(photo('twentyOneNine', 2100, 900))).toBe(3); // 2.33:1
+    expect(columnSpan(photo('exactly2', 2000, 1000))).toBe(3); // 2.0:1 hits the threshold
   });
 });
