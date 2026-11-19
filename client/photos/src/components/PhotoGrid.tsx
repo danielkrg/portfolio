@@ -1,13 +1,14 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { deriveOrientation } from '../lib/orientation';
-import { columnSpan, columnsForWidth } from '../lib/masonry';
+import { columnsForWidth } from '../lib/masonry';
 import Lightbox from './Lightbox';
 import type { Photo, PhotosTheme } from '../types';
 
-// Grid metrics. GAP matches the Tailwind `gap-4` (1rem); ROW_UNIT is the base
-// auto-row height each Photo spans a whole number of, which is how a CSS grid
-// fakes a masonry: a Photo's row-span is its rendered height in ROW_UNITs.
-const GAP = 16;
+// Grid metrics. GAP is the space between Photos (matched by the page's side
+// margins); ROW_UNIT is the base auto-row height each Photo spans a whole number
+// of, which is how a CSS grid fakes a masonry: a Photo's row-span is its
+// rendered height in ROW_UNITs.
+const GAP = 8;
 const ROW_UNIT = 8;
 
 function useColumnCount(): number {
@@ -42,25 +43,28 @@ function PhotoFigure({
   span,
   rowSpan,
   onOpen,
+  registerRef,
 }: {
   photo: Photo;
   span: number;
   rowSpan: number;
-  onOpen: () => void;
+  onOpen: (el: HTMLElement) => void;
+  registerRef: (id: string, el: HTMLElement | null) => void;
 }) {
   return (
     <figure
+      ref={(el) => registerRef(photo.id, el)}
       data-cursor="image"
       data-orientation={deriveOrientation(photo.width, photo.height)}
       // outline-none clears the UA focus ring left after a mouse click (and on
       // return from the viewer); focus-visible restores one for keyboard users.
       className="overflow-hidden outline-none focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-3px]"
       style={{ gridColumn: `span ${span}`, gridRow: `span ${rowSpan}` }}
-      onClick={onOpen}
+      onClick={(e) => onOpen(e.currentTarget)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          onOpen();
+          onOpen(e.currentTarget);
         }
       }}
       role="button"
@@ -96,6 +100,29 @@ export default function PhotoGrid({ photos, theme }: PhotoGridProps) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const gridWidth = useMeasuredWidth(gridRef);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  // Live map of each Photo's figure element, keyed by id, so the viewer can
+  // measure the cell to expand from (on open) and collapse back into (on close).
+  const figureEls = useRef(new Map<string, HTMLElement>());
+  const [originRect, setOriginRect] = useState<DOMRect | null>(null);
+
+  const registerRef = (id: string, el: HTMLElement | null) => {
+    if (el) figureEls.current.set(id, el);
+    else figureEls.current.delete(id);
+  };
+
+  const openPhoto = (photo: Photo, el: HTMLElement) => {
+    setOriginRect(el.getBoundingClientRect());
+    setOpenIndex(indexById.get(photo.id) ?? 0);
+  };
+
+  // Scroll the gallery so the given Photo's cell is centred in view, then return
+  // its (now on-screen) rect — the target the viewer collapses the image into.
+  const collapseTargetFor = (photoId: string): DOMRect | null => {
+    const el = figureEls.current.get(photoId);
+    if (!el) return null;
+    el.scrollIntoView({ block: 'center' });
+    return el.getBoundingClientRect();
+  };
 
   // Map a Photo to its position in the displayed set, so the viewer pages
   // through `photos` in Master Order regardless of grid placement.
@@ -109,7 +136,8 @@ export default function PhotoGrid({ photos, theme }: PhotoGridProps) {
     gridWidth > 0 ? (gridWidth - (columnCount - 1) * GAP) / columnCount : 0;
 
   const laidOut = photos.map((photo) => {
-    const span = Math.min(columnSpan(photo), columnCount);
+    // Every Photo occupies a single column, whatever its aspect ratio.
+    const span = 1;
     const width = colWidth * span + (span - 1) * GAP;
     const height = width * (photo.height / photo.width);
     // +GAP on both sides so the trailing gap is counted once per spanned row.
@@ -136,7 +164,8 @@ export default function PhotoGrid({ photos, theme }: PhotoGridProps) {
             photo={photo}
             span={span}
             rowSpan={rowSpan}
-            onOpen={() => setOpenIndex(indexById.get(photo.id) ?? 0)}
+            onOpen={(el) => openPhoto(photo, el)}
+            registerRef={registerRef}
           />
         ))}
       </div>
@@ -148,6 +177,8 @@ export default function PhotoGrid({ photos, theme }: PhotoGridProps) {
           onIndexChange={setOpenIndex}
           onClose={() => setOpenIndex(null)}
           theme={theme}
+          originRect={originRect}
+          collapseTargetFor={collapseTargetFor}
         />
       )}
     </>
