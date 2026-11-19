@@ -16,14 +16,20 @@
  * dimensions Cloudinary returns (GLOSSARY: Orientation).
  */
 
-/** Longest edge, in pixels, a processed image is scaled down to. */
+/**
+ * Longest edge, in pixels, a processed image is scaled down to. Sized a step
+ * above the gallery's 1080p target display so there's resampling headroom for
+ * the full-screen view (and higher-DPI screens) while staying comfortably under
+ * Cloudinary's 10 MB free-tier cap (ADR-0001). The high-quality downscale (see
+ * {@link processImage}) is what keeps these masters crisp rather than soft.
+ */
 export const MAX_EDGE = 2560;
 
 /** Output encoding for processed images. JPEG re-encode is what strips EXIF. */
 export const OUTPUT_TYPE = 'image/jpeg';
 
 /** JPEG quality for the processed output (0–1). */
-export const OUTPUT_QUALITY = 0.85;
+export const OUTPUT_QUALITY = 0.9;
 
 /**
  * Fit (width, height) within a `maxEdge`-by-`maxEdge` box, preserving aspect
@@ -98,6 +104,11 @@ export async function processImage(file: File): Promise<Blob> {
     canvas.height = height;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Could not get a 2D canvas context');
+    // Use the high-quality resampling kernel for the downscale. The canvas
+    // default is 'low', which visibly softens a large reduction (e.g. a 6000px
+    // camera frame down to MAX_EDGE); 'high' keeps edges crisp at no size cost.
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(bitmap, 0, 0, width, height);
 
     const blob = await new Promise<Blob | null>((resolve) =>

@@ -317,7 +317,7 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
         {/* Header: the centred Gallery title flanked by thin rules that run to
             both screen edges (within the gallery's side margins) and sit on the
             title's vertical centre. (Exit lives fixed at the top-left.) */}
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-6 pb-5">
           <div className="h-px flex-1 bg-white/15" />
           <h1 className={`text-7xl font-extrabold tracking-wide md:text-8xl ${theme.textPrimary}`}>
             Gallery
