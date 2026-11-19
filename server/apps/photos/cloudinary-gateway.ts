@@ -22,6 +22,11 @@ export interface Photo {
  */
 export interface PhotoGateway {
   listPhotos(): Promise<Photo[]>;
+  /**
+   * Permanently remove a Photo's underlying Cloudinary asset by its public_id.
+   * Idempotent: deleting an already-gone asset resolves rather than throwing.
+   */
+  deletePhoto(publicId: string): Promise<void>;
 }
 
 // Owner-namespaced asset folder (ADR-0002: photos/<userId>/…, single user `me`
@@ -93,5 +98,17 @@ export const cloudinaryGateway: PhotoGateway = {
     });
     const resources = (result.resources ?? []) as unknown as CloudinaryResource[];
     return resources.map(toPhoto).sort(byMasterOrder);
+  },
+
+  async deletePhoto(publicId: string): Promise<void> {
+    ensureConfigured();
+    // destroy() addresses the asset by public_id. Under dynamic folders the
+    // public_id is bare (decoupled from asset_folder), which is exactly the id
+    // the list endpoint already hands the client, so no translation is needed.
+    // `result: 'not found'` means it was already gone — treat that as success.
+    const res = await cloudinary.uploader.destroy(publicId, { invalidate: true });
+    if (res.result !== 'ok' && res.result !== 'not found') {
+      throw new Error(`Cloudinary destroy failed for ${publicId}: ${res.result}`);
+    }
   },
 };

@@ -67,6 +67,21 @@ export function createPhotosRouter(gateway: PhotoGateway, auth: Auth): Router {
     res.status(201).json({ ok: true, owner: userId, folder: ownerFolder(userId) });
   });
 
+  // DELETE /api/photos/:id — remove a Photo and its underlying Cloudinary asset
+  // (ADR-0001), Owner-only. The single Owner's gateway addresses only their own
+  // account, so requireOwner is the authorization gate; the id is the Photo's
+  // public_id (bare under dynamic folders), URL-encoded by the client.
+  router.delete('/:id', auth.requireOwner, async (req: Request, res: Response) => {
+    const publicId = req.params.id;
+    try {
+      await gateway.deletePhoto(publicId);
+      res.json({ ok: true, id: publicId });
+    } catch (err) {
+      console.error(`Failed to delete photo ${publicId}:`, err);
+      res.status(502).json({ error: 'Failed to delete photo' });
+    }
+  });
+
   return router;
 }
 

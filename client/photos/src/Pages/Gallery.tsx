@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDownIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon, PencilIcon } from '@heroicons/react/24/outline';
 import PhotoGrid from '../components/PhotoGrid';
 import FilterBar from '../components/FilterBar';
+import MorphPill from '../components/MorphPill';
 import { collectTags, filterPhotos, nextTagMode, type TagMode } from '../lib/filters';
 import type { Orientation } from '../lib/orientation';
 import type { Photo, PhotosAppProps } from '../types';
@@ -12,16 +13,28 @@ type LoadState =
   | { status: 'error' };
 
 /**
- * The public, view-only gallery. Fetches Photos from /api/photos (Cloudinary-
- * backed, ADR-0001) and renders them as a responsive masonry in Master Order,
- * in the portfolio's light/dark theme with the global custom cursor. The
- * full-screen cover is the landing; the grid loads underneath it.
+ * The gallery. Fetches Photos from /api/photos (Cloudinary-backed, ADR-0001)
+ * and renders them as a responsive masonry in Master Order, in the portfolio's
+ * light/dark theme with the global custom cursor. The full-screen cover is the
+ * landing; the grid loads underneath it.
+ *
+ * Public by default. When the Owner's session cookie is present (ADR-0002) an
+ * Edit toggle appears top-right of the header: it turns the grid into a
+ * multi-select surface for deleting Photos (and their underlying Cloudinary
+ * assets). Logged out, none of this renders.
  */
 export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppProps) {
   const [load, setLoad] = useState<LoadState>({ status: 'loading' });
   const [showArrow, setShowArrow] = useState(true);
   const [orientations, setOrientations] = useState<ReadonlySet<Orientation>>(new Set());
   const [tagModes, setTagModes] = useState<Record<string, TagMode>>({});
+  // Owner curation state (ADR-0002). `isOwner` is restored from the httpOnly
+  // session cookie on mount; logged out, no Edit affordance renders at all.
+  const [isOwner, setIsOwner] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const coverRef = useRef<HTMLElement | null>(null);
   const galleryRef = useRef<HTMLDivElement | null>(null);
 
@@ -41,6 +54,62 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
       else delete next[tag];
       return next;
     });
+
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const exitEditMode = () => {
+    setEditMode(false);
+    setSelected(new Set());
+    setConfirming(false);
+  };
+
+  const toggleEditMode = () => (editMode ? exitEditMode() : setEditMode(true));
+
+  // Delete the current selection: remove each underlying Cloudinary asset via
+  // the gateway (DELETE /api/photos/:id, Owner-gated), then drop the ones that
+  // succeeded from the grid. Partial failures keep their Photos and selection.
+  const deleteSelected = async () => {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    setDeleting(true);
+    const outcomes = await Promise.all(
+      ids.map((id) =>
+        fetch(`/api/photos/${encodeURIComponent(id)}`, { method: 'DELETE', credentials: 'include' })
+          .then((res) => res.ok)
+          .catch(() => false),
+      ),
+    );
+    const removed = new Set(ids.filter((_, i) => outcomes[i]));
+    setLoad((prev) =>
+      prev.status === 'ready'
+        ? { status: 'ready', photos: prev.photos.filter((p) => !removed.has(p.id)) }
+        : prev,
+    );
+    setSelected((prev) => new Set([...prev].filter((id) => !removed.has(id))));
+    setConfirming(false);
+    setDeleting(false);
+  };
+
+  // Restore Owner state from the session cookie (httpOnly, unreadable by JS).
+  useEffect(() => {
+    let active = true;
+    fetch('/api/photos/session', { credentials: 'include' })
+      .then((res) => {
+        if (active) setIsOwner(res.ok);
+      })
+      .catch(() => {
+        if (active) setIsOwner(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -126,7 +195,33 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
         </button>
       </section>
 
-      <div ref={galleryRef} className="px-2 pt-30 pb-30 animate-fadeInMed">
+      <div ref={galleryRef} className="relative px-2 pt-30 pb-30 animate-fadeInMed">
+        {/* Owner controls: top-right of the header, mirroring the orientation
+            filters below-right (ADR-0002). Rendered only when authenticated, so
+            logged out there is no hint Edit Mode exists. The upcoming upload
+            button will sit to the left of the Edit toggle. Visible in filtered
+            views too — only drag-reorder is restricted to the unfiltered view. */}
+        {isOwner && load.status === 'ready' && allPhotos.length > 0 && (
+          <div className="absolute right-5 top-5 z-40 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleEditMode}
+              aria-pressed={editMode}
+              aria-label={editMode ? 'Exit edit mode' : 'Edit gallery'}
+              title={editMode ? 'Exit edit mode' : 'Edit gallery'}
+              className={`p-2 rounded-md transition-colors duration-300 cursor-pointer ${
+                editMode
+                  ? isDark
+                    ? 'text-white'
+                    : 'text-black'
+                  : `${theme.textSubtle} ${theme.textHover}`
+              }`}
+            >
+              <PencilIcon className="h-6 w-6" />
+            </button>
+          </div>
+        )}
+
         {/* Header: the centred Gallery title flanked by thin rules that run to
             both screen edges (within the gallery's side margins) and sit on the
             title's vertical centre. (Exit lives fixed at the top-left.) */}
@@ -167,9 +262,73 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
           <p className={theme.textSecondary}>No photos match the current filters.</p>
         )}
         {load.status === 'ready' && visiblePhotos.length > 0 && (
-          <PhotoGrid photos={visiblePhotos} theme={theme} />
+          <PhotoGrid
+            photos={visiblePhotos}
+            theme={theme}
+            editMode={editMode}
+            selectedIds={selected}
+            onToggleSelect={toggleSelect}
+          />
         )}
       </div>
+
+      {/* Edit Mode action bar: fixed, bottom-centre, shown once something is
+          selected. First click arms the delete; a second confirms it, since
+          removing the Cloudinary asset can't be undone. The bar grows/shrinks
+          smoothly between the select and confirm states (MorphPill), the shared
+          action-bar treatment for Edit Mode (tag/untag will reuse it). */}
+      {editMode && selected.size > 0 && (
+        <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 animate-fadeInMed">
+          <MorphPill className={`rounded-full border shadow-lg backdrop-blur ${theme.navBg} ${theme.border}`}>
+            <div
+              key={confirming ? 'confirm' : 'select'}
+              className="flex items-center gap-4 px-5 py-3 animate-fadeInFast"
+            >
+              {confirming ? (
+                <>
+                  <span className={`text-sm ${theme.textPrimary}`}>
+                    Delete {selected.size} photo{selected.size === 1 ? '' : 's'}? This can’t be undone.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setConfirming(false)}
+                    disabled={deleting}
+                    className={`rounded-full px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 ${theme.textSecondary} ${theme.textHover} disabled:opacity-40`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={deleteSelected}
+                    disabled={deleting}
+                    className={`px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 text-red-400 hover:text-red-600 disabled:opacity-40`}
+                  >
+                    {deleting ? 'Deleting…' : 'Confirm'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className={`text-sm ${theme.textPrimary}`}>{selected.size} Selected</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelected(new Set())}
+                    className={`rounded-full px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 ${theme.textSecondary} ${theme.textHover}`}
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirming(true)}
+                    className={`px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 text-red-400 hover:text-red-600`}
+                  >
+                    Delete
+                  </button>
+                </>
+              )}
+            </div>
+          </MorphPill>
+        </div>
+      )}
     </div>
   );
 }
