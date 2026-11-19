@@ -18,7 +18,7 @@ import type { PhotoGateway } from '../../../../server/apps/photos/cloudinary-gat
 
 const PASSWORD = 'correct horse battery staple';
 const PASSWORD_HASH = bcrypt.hashSync(PASSWORD, 10);
-const gateway: PhotoGateway = { listPhotos: async () => [] };
+const gateway: PhotoGateway = { listPhotos: async () => [], deletePhoto: async () => {} };
 
 // Build an app whose auth seam knows PASSWORD_HASH. Each call gets a FRESH auth
 // (and thus a fresh rate limiter), so tests don't leak attempt counts.
@@ -142,6 +142,58 @@ describe('the write gate (stub write endpoint)', () => {
       .set('Cookie', `${SESSION_COOKIE}=${forged}`)
       .send({});
     expect(res.status).toBe(401);
+  });
+});
+
+describe('DELETE /api/photos/:id (Owner-only)', () => {
+  // A gateway that records which ids it was asked to destroy, so we can assert
+  // the delete reaches Cloudinary (ADR-0001) without touching the real account.
+  function recordingGateway() {
+    const deleted: string[] = [];
+    const gw: PhotoGateway = {
+      listPhotos: async () => [],
+      deletePhoto: async (id: string) => {
+        deleted.push(id);
+      },
+    };
+    return { gw, deleted };
+  }
+
+  function makeAppWith(gw: PhotoGateway) {
+    const auth = createAuth({ jwtSecret: 'test-secret', passwordHash: PASSWORD_HASH, userId: 'me', isProd: false });
+    const app = express();
+    app.use(express.json());
+    app.use('/api/photos', createPhotosRouter(gw, auth));
+    return app;
+  }
+
+  it('rejects an unauthenticated delete and never touches the gateway', async () => {
+    const { gw, deleted } = recordingGateway();
+    const res = await request(makeAppWith(gw)).delete('/api/photos/DSCF6913');
+    expect(res.status).toBe(401);
+    expect(deleted).toEqual([]);
+  });
+
+  it('removes the asset via the gateway when authenticated', async () => {
+    const { gw, deleted } = recordingGateway();
+    const agent = request.agent(makeAppWith(gw));
+    await agent.post('/api/photos/login').send({ password: PASSWORD });
+    const res = await agent.delete('/api/photos/DSCF6913');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ ok: true, id: 'DSCF6913' });
+    expect(deleted).toEqual(['DSCF6913']);
+  });
+
+  it('responds 502 when the gateway fails', async () => {
+    const gw: PhotoGateway = {
+      listPhotos: async () => [],
+      deletePhoto: async () => {
+        throw new Error('cloudinary unavailable');
+      },
+    };
+    const agent = request.agent(makeAppWith(gw));
+    await agent.post('/api/photos/login').send({ password: PASSWORD });
+    expect((await agent.delete('/api/photos/DSCF6913')).status).toBe(502);
   });
 });
 
