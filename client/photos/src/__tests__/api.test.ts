@@ -34,7 +34,11 @@ const photo: Photo = {
 
 describe('GET /api/photos', () => {
   it('returns the gateway photos as JSON without requiring auth', async () => {
-    const gateway: PhotoGateway = { listPhotos: async () => [photo], deletePhoto: async () => {} };
+    const gateway: PhotoGateway = {
+      listPhotos: async () => [photo],
+      deletePhoto: async () => {},
+      uploadPhoto: async () => photo,
+    };
 
     // No Authorization header is sent — the list endpoint is public.
     const res = await request(makeApp(gateway)).get('/api/photos');
@@ -49,6 +53,7 @@ describe('GET /api/photos', () => {
         throw new Error('cloudinary unavailable');
       },
       deletePhoto: async () => {},
+      uploadPhoto: async () => photo,
     };
 
     const res = await request(makeApp(gateway)).get('/api/photos');
