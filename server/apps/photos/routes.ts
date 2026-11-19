@@ -1,13 +1,24 @@
 import { Router, type Request, type Response } from 'express';
 import cookieParser from 'cookie-parser';
+import multer from 'multer';
 import { cloudinaryGateway, type PhotoGateway } from './cloudinary-gateway';
 import {
   createAuth,
-  ownerFolder,
   OWNER_USER_ID,
   type Auth,
   type AuthedRequest,
 } from './auth';
+
+// The browser downscales/strips each image before sending (issue #8), so the
+// processed upload is comfortably under Cloudinary's 10 MB cap; 12 MB leaves
+// headroom. Kept in memory — nothing touches the ephemeral disk (ADR-0001).
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 12 * 1024 * 1024 },
+});
+
+// A request carrying a single parsed upload (multer populates `file`).
+type UploadRequest = AuthedRequest & { file?: Express.Multer.File };
 
 /**
  * Build the Photos router around a PhotoGateway and an Auth seam, both injected
@@ -58,13 +69,28 @@ export function createPhotosRouter(gateway: PhotoGateway, auth: Auth): Router {
     res.json({ userId: (req as AuthedRequest).userId });
   });
 
-  // POST /api/photos — stub write endpoint proving the gate: rejected when
-  // unauthenticated, accepted with a valid cookie. It reports the owner-
-  // namespaced folder the asset would be written under (ADR-0002); real upload
-  // arrives in a later slice.
-  router.post('/', auth.requireOwner, (req: Request, res: Response) => {
-    const userId = (req as AuthedRequest).userId as string;
-    res.status(201).json({ ok: true, owner: userId, folder: ownerFolder(userId) });
+  // POST /api/photos — upload a new Photo (issue #8), Owner-only. requireOwner
+  // runs before multer so an unauthenticated upload is rejected (401) without
+  // the body ever being read. The image has already been downscaled and
+  // EXIF-stripped in the browser; the server relays the bytes to Cloudinary and
+  // seeds Master Order. New Photos sort newest-first: Master Order ascends by
+  // `position`, so a descending-time seed keeps each upload ahead of the
+  // existing Photos (and ahead of earlier uploads in the same batch) until the
+  // Owner reorders. Orientation is derived client-side from the dimensions
+  // Cloudinary returns, so none is computed here.
+  router.post('/', auth.requireOwner, upload.single('file'), async (req: Request, res: Response) => {
+    const file = (req as UploadRequest).file;
+    if (!file) {
+      res.status(400).json({ error: 'No file provided' });
+      return;
+    }
+    try {
+      const photo = await gateway.uploadPhoto({ data: file.buffer, position: -Date.now() });
+      res.status(201).json({ photo });
+    } catch (err) {
+      console.error('Failed to upload photo:', err);
+      res.status(502).json({ error: 'Failed to upload photo' });
+    }
   });
 
   // DELETE /api/photos/:id — remove a Photo and its underlying Cloudinary asset

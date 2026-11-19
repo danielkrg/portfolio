@@ -14,11 +14,29 @@ import {
   createAuth,
   SESSION_COOKIE,
 } from '../../../../server/apps/photos/auth';
-import type { PhotoGateway } from '../../../../server/apps/photos/cloudinary-gateway';
+import type { Photo, PhotoGateway, UploadInput } from '../../../../server/apps/photos/cloudinary-gateway';
 
 const PASSWORD = 'correct horse battery staple';
 const PASSWORD_HASH = bcrypt.hashSync(PASSWORD, 10);
-const gateway: PhotoGateway = { listPhotos: async () => [], deletePhoto: async () => {} };
+
+// A canned Photo the fake upload returns, standing in for what Cloudinary would
+// hand back (dimensions included, from which the client derives Orientation).
+const uploadedPhoto: Photo = {
+  id: 'abc123',
+  url: 'https://res.cloudinary.com/demo/abc123.jpg',
+  thumbnailUrl: 'https://res.cloudinary.com/demo/t_thumb/abc123.jpg',
+  width: 2560,
+  height: 1707,
+  tags: [],
+  caption: null,
+  alt: null,
+  position: -1,
+};
+const gateway: PhotoGateway = {
+  listPhotos: async () => [],
+  deletePhoto: async () => {},
+  uploadPhoto: async () => uploadedPhoto,
+};
 
 // Build an app whose auth seam knows PASSWORD_HASH. Each call gets a FRESH auth
 // (and thus a fresh rate limiter), so tests don't leak attempt counts.
@@ -121,27 +139,97 @@ describe('POST /api/photos/login', () => {
   });
 });
 
-describe('the write gate (stub write endpoint)', () => {
-  it('rejects an unauthenticated write', async () => {
-    const res = await request(makeApp()).post('/api/photos').send({});
+describe('POST /api/photos (upload, Owner-only)', () => {
+  // A gateway that records what it was asked to upload, so we can assert the
+  // processed bytes reach it and that each upload is seeded newest-first.
+  function recordingUploadGateway() {
+    const uploads: UploadInput[] = [];
+    const gw: PhotoGateway = {
+      listPhotos: async () => [],
+      deletePhoto: async () => {},
+      uploadPhoto: async (input: UploadInput) => {
+        uploads.push(input);
+        return uploadedPhoto;
+      },
+    };
+    return { gw, uploads };
+  }
+
+  function makeAppWith(gw: PhotoGateway) {
+    const auth = createAuth({ jwtSecret: 'test-secret', passwordHash: PASSWORD_HASH, userId: 'me', isProd: false });
+    const app = express();
+    app.use(express.json());
+    app.use('/api/photos', createPhotosRouter(gw, auth));
+    return app;
+  }
+
+  it('rejects an unauthenticated upload and never touches the gateway', async () => {
+    const { gw, uploads } = recordingUploadGateway();
+    const res = await request(makeAppWith(gw))
+      .post('/api/photos')
+      .attach('file', Buffer.from('fake-jpeg'), 'photo.jpg');
     expect(res.status).toBe(401);
+    expect(uploads).toEqual([]);
   });
 
-  it('accepts a write carrying a valid session cookie and namespaces by owner', async () => {
-    const agent = request.agent(makeApp());
-    await agent.post('/api/photos/login').send({ password: PASSWORD });
-    const res = await agent.post('/api/photos').send({});
-    expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ ok: true, owner: 'me', folder: 'photos/me/' });
-  });
-
-  it('rejects a write whose cookie was signed with the wrong secret', async () => {
+  it('rejects an upload whose cookie was signed with the wrong secret', async () => {
     const forged = signSession({ userId: 'me' }, 'attacker-secret');
     const res = await request(makeApp())
       .post('/api/photos')
       .set('Cookie', `${SESSION_COOKIE}=${forged}`)
-      .send({});
+      .attach('file', Buffer.from('fake-jpeg'), 'photo.jpg');
     expect(res.status).toBe(401);
+  });
+
+  it('uploads the file via the gateway and returns the created Photo', async () => {
+    const { gw, uploads } = recordingUploadGateway();
+    const agent = request.agent(makeAppWith(gw));
+    await agent.post('/api/photos/login').send({ password: PASSWORD });
+
+    const bytes = Buffer.from('processed-jpeg-bytes');
+    const res = await agent.post('/api/photos').attach('file', bytes, 'DSCF6913.jpg');
+
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({ photo: uploadedPhoto });
+    expect(uploads).toHaveLength(1);
+    expect(uploads[0].data.equals(bytes)).toBe(true);
+    // Seeded newest-first: Master Order ascends, so a negative seed sorts ahead
+    // of the existing (0+) Photos.
+    expect(uploads[0].position).toBeLessThan(0);
+  });
+
+  it('seeds later uploads ahead of earlier ones (newest-first)', async () => {
+    const { gw, uploads } = recordingUploadGateway();
+    const agent = request.agent(makeAppWith(gw));
+    await agent.post('/api/photos/login').send({ password: PASSWORD });
+
+    await agent.post('/api/photos').attach('file', Buffer.from('a'), 'a.jpg');
+    await agent.post('/api/photos').attach('file', Buffer.from('b'), 'b.jpg');
+
+    // A later upload gets a smaller (more negative) position, so it sorts first.
+    expect(uploads[1].position).toBeLessThanOrEqual(uploads[0].position);
+  });
+
+  it('responds 400 when authenticated but no file is attached', async () => {
+    const { gw } = recordingUploadGateway();
+    const agent = request.agent(makeAppWith(gw));
+    await agent.post('/api/photos/login').send({ password: PASSWORD });
+    const res = await agent.post('/api/photos').send({});
+    expect(res.status).toBe(400);
+  });
+
+  it('responds 502 when the gateway upload fails', async () => {
+    const gw: PhotoGateway = {
+      listPhotos: async () => [],
+      deletePhoto: async () => {},
+      uploadPhoto: async () => {
+        throw new Error('cloudinary unavailable');
+      },
+    };
+    const agent = request.agent(makeAppWith(gw));
+    await agent.post('/api/photos/login').send({ password: PASSWORD });
+    const res = await agent.post('/api/photos').attach('file', Buffer.from('x'), 'x.jpg');
+    expect(res.status).toBe(502);
   });
 });
 
@@ -155,6 +243,7 @@ describe('DELETE /api/photos/:id (Owner-only)', () => {
       deletePhoto: async (id: string) => {
         deleted.push(id);
       },
+      uploadPhoto: async () => uploadedPhoto,
     };
     return { gw, deleted };
   }
@@ -190,6 +279,7 @@ describe('DELETE /api/photos/:id (Owner-only)', () => {
       deletePhoto: async () => {
         throw new Error('cloudinary unavailable');
       },
+      uploadPhoto: async () => uploadedPhoto,
     };
     const agent = request.agent(makeAppWith(gw));
     await agent.post('/api/photos/login').send({ password: PASSWORD });

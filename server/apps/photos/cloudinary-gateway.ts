@@ -1,4 +1,4 @@
-import { v2 as cloudinary } from 'cloudinary';
+import { v2 as cloudinary, type UploadApiResponse } from 'cloudinary';
 
 /**
  * A Photo as served by the public API. Dimensions are carried raw so the client
@@ -17,6 +17,21 @@ export interface Photo {
 }
 
 /**
+ * A processed image ready to become a new Photo. The bytes have already been
+ * downscaled and EXIF-stripped in the browser (issue #8); the server only
+ * relays them to Cloudinary and seeds their place in Master Order.
+ */
+export interface UploadInput {
+  /** The processed image bytes (a web-friendly JPEG/WebP; never raw HEIC). */
+  data: Buffer;
+  /**
+   * The Master Order `position` to seed this Photo at. New uploads sort ahead
+   * of existing Photos (newest-first) until the Owner reorders; see the route.
+   */
+  position: number;
+}
+
+/**
  * The single seam through which the rest of the server reaches Cloudinary
  * (ADR-0001). Server code depends on this interface; tests fake it.
  */
@@ -27,6 +42,12 @@ export interface PhotoGateway {
    * Idempotent: deleting an already-gone asset resolves rather than throwing.
    */
   deletePhoto(publicId: string): Promise<void>;
+  /**
+   * Upload processed image bytes as a new Photo under the Owner's asset folder,
+   * returning it with the width/height Cloudinary derived — the dimensions the
+   * client reads Orientation from (GLOSSARY: Orientation).
+   */
+  uploadPhoto(input: UploadInput): Promise<Photo>;
 }
 
 // Owner-namespaced asset folder (ADR-0002: photos/<userId>/…, single user `me`
@@ -110,5 +131,38 @@ export const cloudinaryGateway: PhotoGateway = {
     if (res.result !== 'ok' && res.result !== 'not found') {
       throw new Error(`Cloudinary destroy failed for ${publicId}: ${res.result}`);
     }
+  },
+
+  async uploadPhoto({ data, position }: UploadInput): Promise<Photo> {
+    ensureConfigured();
+    // Stream the buffer to Cloudinary. We target the Owner's *asset_folder* (not
+    // a public_id prefix) because the account uses dynamic folders — the same
+    // namespace listPhotos reads back from. `position` is seeded as contextual
+    // metadata so the new Photo sorts into Master Order on the next list.
+    const result = await new Promise<UploadApiResponse>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          asset_folder: OWNER_FOLDER,
+          resource_type: 'image',
+          context: { position: String(position) },
+        },
+        (error, uploaded) => {
+          if (uploaded) resolve(uploaded);
+          else reject(error ?? new Error('Cloudinary upload returned no result'));
+        },
+      );
+      stream.end(data);
+    });
+
+    // Build the Photo from the upload result (Cloudinary supplies width/height),
+    // reusing the same mapper the list endpoint uses so the contract is identical.
+    return toPhoto({
+      public_id: result.public_id,
+      secure_url: result.secure_url,
+      width: result.width,
+      height: result.height,
+      tags: result.tags ?? [],
+      context: { custom: { position: String(position) } },
+    });
   },
 };

@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDownIcon, PencilIcon } from '@heroicons/react/24/outline';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { ArrowUpOnSquareIcon, ChevronDownIcon, PencilIcon } from '@heroicons/react/24/outline';
 import PhotoGrid from '../components/PhotoGrid';
 import FilterBar from '../components/FilterBar';
 import MorphPill from '../components/MorphPill';
 import { collectTags, filterPhotos, nextTagMode, type TagMode } from '../lib/filters';
+import { uploadPhoto } from '../lib/upload';
 import type { Orientation } from '../lib/orientation';
 import type { Photo, PhotosAppProps } from '../types';
 
@@ -35,8 +36,13 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Upload state (issue #8). `uploading` counts files still in flight in the
+  // current action; `uploadError` surfaces a partial failure briefly.
+  const [uploading, setUploading] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const coverRef = useRef<HTMLElement | null>(null);
   const galleryRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const toggleOrientation = (orientation: Orientation) =>
     setOrientations((prev) => {
@@ -96,6 +102,45 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
     setDeleting(false);
   };
 
+  // Seed a freshly uploaded Photo at the front of the grid: new Photos are
+  // newest-first in Master Order (issue #8), and the array order is the display
+  // order, so prepending puts the latest upload on top.
+  const prependPhoto = (photo: Photo) =>
+    setLoad((prev) =>
+      prev.status === 'ready'
+        ? { status: 'ready', photos: [photo, ...prev.photos] }
+        : { status: 'ready', photos: [photo] },
+    );
+
+  // Process and upload every picked file (one action, one or many files). Each
+  // is downscaled, EXIF-stripped and HEIC-converted in the browser before it is
+  // sent (see lib/upload). Successes stream into the grid as they land; failures
+  // are counted and reported without disturbing the Photos that did upload.
+  const handleFiles = async (fileList: FileList | null) => {
+    const files = fileList ? [...fileList] : [];
+    if (files.length === 0) return;
+    setUploadError(null);
+    setUploading(files.length);
+    let failures = 0;
+    for (const file of files) {
+      try {
+        prependPhoto(await uploadPhoto(file));
+      } catch (err) {
+        console.error('Upload failed:', err);
+        failures += 1;
+      }
+      setUploading((n) => n - 1);
+    }
+    if (failures > 0) {
+      setUploadError(`${failures} of ${files.length} upload${files.length === 1 ? '' : 's'} failed.`);
+    }
+  };
+
+  const onFileInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    void handleFiles(e.target.files);
+    e.target.value = ''; // let the same file be re-picked after a failure
+  };
+
   // Restore Owner state from the session cookie (httpOnly, unreadable by JS).
   useEffect(() => {
     let active = true;
@@ -142,6 +187,13 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+
+  // Clear a partial-upload notice after a few seconds so it doesn't linger.
+  useEffect(() => {
+    if (!uploadError) return;
+    const timer = setTimeout(() => setUploadError(null), 6000);
+    return () => clearTimeout(timer);
+  }, [uploadError]);
 
   const jumpToGallery = () => {
     galleryRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -198,34 +250,74 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
       <div ref={galleryRef} className="relative px-2 pt-30 pb-30 animate-fadeInMed">
         {/* Owner controls: top-right of the header, mirroring the orientation
             filters below-right (ADR-0002). Rendered only when authenticated, so
-            logged out there is no hint Edit Mode exists. The upcoming upload
-            button will sit to the left of the Edit toggle. Visible in filtered
-            views too — only drag-reorder is restricted to the unfiltered view. */}
-        {isOwner && load.status === 'ready' && allPhotos.length > 0 && (
+            logged out there is no hint Edit Mode exists. Upload sits to the left
+            of the Edit toggle and stays available even on an empty gallery, so
+            the Owner can seed the first Photos; the Edit toggle only appears once
+            there are Photos to curate. Visible in filtered views too — only
+            drag-reorder is restricted to the unfiltered view. */}
+        {isOwner && load.status === 'ready' && (
           <div className="absolute right-5 top-5 z-40 flex items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.heic,.heif,image/heic,image/heif"
+              multiple
+              className="hidden"
+              onChange={onFileInputChange}
+            />
             <button
               type="button"
-              onClick={toggleEditMode}
-              aria-pressed={editMode}
-              aria-label={editMode ? 'Exit edit mode' : 'Edit gallery'}
-              title={editMode ? 'Exit edit mode' : 'Edit gallery'}
-              className={`p-2 rounded-md transition-colors duration-300 cursor-pointer ${
-                editMode
-                  ? isDark
-                    ? 'text-white'
-                    : 'text-black'
-                  : `${theme.textSubtle} ${theme.textHover}`
-              }`}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading > 0}
+              aria-label={uploading > 0 ? `Uploading ${uploading} photo${uploading === 1 ? '' : 's'}` : 'Upload photos'}
+              title={uploading > 0 ? 'Uploading…' : 'Upload photos'}
+              className={`p-2 rounded-md transition-colors duration-300 cursor-pointer disabled:cursor-default ${theme.textSubtle} ${theme.textHover}`}
             >
-              <PencilIcon className="h-6 w-6" />
+              {uploading > 0 ? (
+                <span
+                  className="block h-6 w-6 animate-spin rounded-full border-2 border-current border-t-transparent"
+                  aria-hidden="true"
+                />
+              ) : (
+                <ArrowUpOnSquareIcon className="h-6 w-6" />
+              )}
             </button>
+            {allPhotos.length > 0 && (
+              <button
+                type="button"
+                onClick={toggleEditMode}
+                aria-pressed={editMode}
+                aria-label={editMode ? 'Exit edit mode' : 'Edit gallery'}
+                title={editMode ? 'Exit edit mode' : 'Edit gallery'}
+                className={`p-2 rounded-md transition-colors duration-300 cursor-pointer ${
+                  editMode
+                    ? isDark
+                      ? 'text-white'
+                      : 'text-black'
+                    : `${theme.textSubtle} ${theme.textHover}`
+                }`}
+              >
+                <PencilIcon className="h-6 w-6" />
+              </button>
+            )}
           </div>
+        )}
+
+        {/* Partial-upload notice, just below the controls; auto-clears. */}
+        {uploadError && (
+          <button
+            type="button"
+            onClick={() => setUploadError(null)}
+            className={`absolute right-5 top-16 z-40 rounded-full border px-4 py-1.5 text-sm shadow-lg backdrop-blur cursor-pointer animate-fadeInFast ${theme.navBg} ${theme.border} text-red-400`}
+          >
+            {uploadError}
+          </button>
         )}
 
         {/* Header: the centred Gallery title flanked by thin rules that run to
             both screen edges (within the gallery's side margins) and sit on the
             title's vertical centre. (Exit lives fixed at the top-left.) */}
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-6 pb-5">
           <div className="h-px flex-1 bg-white/15" />
           <h1 className={`text-7xl font-extrabold tracking-wide md:text-8xl ${theme.textPrimary}`}>
             Gallery
