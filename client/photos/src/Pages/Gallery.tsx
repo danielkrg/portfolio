@@ -1,6 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { ChevronDownIcon, MoonIcon, SunIcon } from '@heroicons/react/24/outline';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDownIcon } from '@heroicons/react/24/outline';
 import PhotoGrid from '../components/PhotoGrid';
+import FilterBar from '../components/FilterBar';
+import { collectTags, filterPhotos, nextTagMode, type TagMode } from '../lib/filters';
+import type { Orientation } from '../lib/orientation';
 import type { Photo, PhotosAppProps } from '../types';
 
 type LoadState =
@@ -14,11 +17,30 @@ type LoadState =
  * in the portfolio's light/dark theme with the global custom cursor. The
  * full-screen cover is the landing; the grid loads underneath it.
  */
-export default function Gallery({ isDark, setIsDark, theme, onExit, coverUrl }: PhotosAppProps) {
+export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppProps) {
   const [load, setLoad] = useState<LoadState>({ status: 'loading' });
   const [showArrow, setShowArrow] = useState(true);
+  const [orientations, setOrientations] = useState<ReadonlySet<Orientation>>(new Set());
+  const [tagModes, setTagModes] = useState<Record<string, TagMode>>({});
   const coverRef = useRef<HTMLElement | null>(null);
   const galleryRef = useRef<HTMLDivElement | null>(null);
+
+  const toggleOrientation = (orientation: Orientation) =>
+    setOrientations((prev) => {
+      const next = new Set(prev);
+      if (next.has(orientation)) next.delete(orientation);
+      else next.add(orientation);
+      return next;
+    });
+
+  const toggleTag = (tag: string) =>
+    setTagModes((prev) => {
+      const mode = nextTagMode(prev[tag]);
+      const next = { ...prev };
+      if (mode) next[tag] = mode;
+      else delete next[tag];
+      return next;
+    });
 
   useEffect(() => {
     let active = true;
@@ -55,6 +77,13 @@ export default function Gallery({ isDark, setIsDark, theme, onExit, coverUrl }: 
   const jumpToGallery = () => {
     galleryRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  const allPhotos = load.status === 'ready' ? load.photos : [];
+  const allTags = useMemo(() => collectTags(allPhotos), [allPhotos]);
+  const visiblePhotos = useMemo(
+    () => filterPhotos(allPhotos, orientations, tagModes),
+    [allPhotos, orientations, tagModes],
+  );
 
   return (
     <div className={`relative min-h-screen transition-colors duration-500 ${theme.bg}`}>
@@ -97,21 +126,33 @@ export default function Gallery({ isDark, setIsDark, theme, onExit, coverUrl }: 
         </button>
       </section>
 
-      <div ref={galleryRef} className="max-w-7xl mx-auto px-5 pt-34 pb-30 animate-fadeInMed">
-        {/* Controls bar: the light/dark toggle on the right, where the upcoming
-            filtering icons will sit beside it. (Exit now lives fixed at the
-            top-left of the viewport.) */}
-        <div className="flex items-center justify-end gap-4 mb-16">
-          <button
-            onClick={() => setIsDark((prev) => !prev)}
-            className={`transition-colors duration-200 cursor-pointer ${theme.textSecondary} ${theme.textHover}`}
-            aria-label="Toggle dark mode"
-          >
-            {isDark ? <MoonIcon className="h-5 w-5" /> : <SunIcon className="h-5 w-5" />}
-          </button>
+      <div ref={galleryRef} className="px-2 pt-30 pb-30 animate-fadeInMed">
+        {/* Header: the centred Gallery title flanked by thin rules that run to
+            both screen edges (within the gallery's side margins) and sit on the
+            title's vertical centre. (Exit lives fixed at the top-left.) */}
+        <div className="flex items-center gap-6">
+          <div className="h-px flex-1 bg-white/15" />
+          <h1 className={`text-7xl font-extrabold tracking-wide md:text-8xl ${theme.textPrimary}`}>
+            Gallery
+          </h1>
+          <div className="h-px flex-1 bg-white/15" />
         </div>
 
-        <h1 className={`font-clash text-6xl md:text-7xl ${theme.textPrimary} mb-12`}>Photos</h1>
+        {/* Filter row: tag filters on the left (wrapping at mid-screen),
+            orientation filters on the right, aligned to the last tag row. */}
+        {load.status === 'ready' && allPhotos.length > 0 && (
+          <div className="mt-10 mb-4">
+            <FilterBar
+              tags={allTags}
+              tagModes={tagModes}
+              onToggleTag={toggleTag}
+              orientations={orientations}
+              onToggleOrientation={toggleOrientation}
+              theme={theme}
+              isDark={isDark}
+            />
+          </div>
+        )}
 
         {load.status === 'loading' && (
           <p className={theme.textSecondary}>Loading gallery…</p>
@@ -122,8 +163,11 @@ export default function Gallery({ isDark, setIsDark, theme, onExit, coverUrl }: 
         {load.status === 'ready' && load.photos.length === 0 && (
           <p className={theme.textSecondary}>No photos yet — the gallery is coming soon.</p>
         )}
-        {load.status === 'ready' && load.photos.length > 0 && (
-          <PhotoGrid photos={load.photos} theme={theme} />
+        {load.status === 'ready' && load.photos.length > 0 && visiblePhotos.length === 0 && (
+          <p className={theme.textSecondary}>No photos match the current filters.</p>
+        )}
+        {load.status === 'ready' && visiblePhotos.length > 0 && (
+          <PhotoGrid photos={visiblePhotos} theme={theme} />
         )}
       </div>
     </div>
