@@ -54,7 +54,9 @@ export default function TagInput({
   const [value, setValue] = useState('');
   const [staged, setStaged] = useState<string[]>([]);
   const [active, setActive] = useState(0);
-  const [anchor, setAnchor] = useState<{ left: number; bottom: number } | null>(null);
+  const [anchor, setAnchor] = useState<{ left: number; bottom: number; width: number } | null>(
+    null,
+  );
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const isStaged = (tag: string) => staged.some((s) => s.toLowerCase() === tag.toLowerCase());
@@ -91,7 +93,7 @@ export default function TagInput({
     if (!bar) return;
     const update = () => {
       const rect = bar.getBoundingClientRect();
-      setAnchor({ left: rect.left, bottom: window.innerHeight - rect.top + 12 });
+      setAnchor({ left: rect.left, bottom: window.innerHeight - rect.top + 12, width: rect.width });
     };
     update();
     const observer = new ResizeObserver(update);
@@ -174,7 +176,15 @@ export default function TagInput({
         displayTags.length > 0 &&
         createPortal(
           <div
-            style={{ position: 'fixed', left: anchor.left, bottom: anchor.bottom, maxWidth: '80vw' }}
+            // Cap the row at 110% of the box so chips wrap to a new line once
+            // they'd run more than 10% past it, rather than trailing off to the
+            // side. Clamped to the viewport so it can never overflow the screen.
+            style={{
+              position: 'fixed',
+              left: anchor.left,
+              bottom: anchor.bottom,
+              maxWidth: `min(${anchor.width * 1.1}px, 96vw)`,
+            }}
             className="z-50 flex flex-wrap justify-start animate-fadeInFast"
           >
             {displayTags.map((tag) => {
