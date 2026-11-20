@@ -1,48 +1,69 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { suggestTags } from '../lib/tags';
+import { suggestTags, resolveTag, withTag, withoutTag } from '../lib/tags';
 import type { PhotosTheme } from '../types';
 
 interface TagInputProps {
-  /** Existing Tags to autocomplete against (the shared vocabulary, or the
-   *  selection's Tags when untagging). */
+  /** Existing Tags to autocomplete against and show as chips (the shared
+   *  vocabulary when tagging, or the selection's Tags when untagging). */
   vocabulary: string[];
   placeholder: string;
   submitLabel: string;
-  /** Allow committing an empty value (untag's "strip all Tags"). */
-  allowEmpty?: boolean;
-  /** Commit the (raw) typed value; the parent canonicalizes casing. */
-  onSubmit: (value: string) => void;
+  /** Style the submit button as a destructive action (Untag's "Remove"). */
+  destructive?: boolean;
+  /** Commit the staged Tags. Empty means "nothing staged" (for Untag, that is
+   *  the "strip all" case; the parent decides). */
+  onSubmit: (tags: string[]) => void;
   onCancel: () => void;
   theme: PhotosTheme;
   isDark: boolean;
 }
 
 /**
- * A small combobox for Tag/Untag (issue #10). Type a Tag name and it
- * autocompletes against `vocabulary` case-insensitively ("b" surfaces "B&W");
- * Tab completes the input to the highlighted suggestion, ↑/↓ move the
- * highlight, Enter commits, Esc cancels. Clicking a suggestion commits it
- * directly. There is no confirmation step — committing applies immediately and
- * the parent keeps the selection intact.
+ * The Tag/Untag entry box (issue #10). A multi-select combobox: the vocabulary
+ * is shown as chips floating above a single-line box, and the Owner stages as
+ * many Tags as they like before committing them in one action.
+ *
+ * Typing filters the chips — non-matching ones fade out (case-insensitive, so
+ * "b" keeps "B&W") — without ever growing the box vertically. Tab completes the
+ * box to the highlighted match; pressing Enter on a non-empty box stages that
+ * Tag and clears the box (so Tab+Enter picks a suggestion); clicking a chip
+ * toggles it. Committing happens only on Enter with an empty box or on the
+ * submit button, and applies every staged Tag at once. Esc cancels.
  */
 export default function TagInput({
   vocabulary,
   placeholder,
   submitLabel,
-  allowEmpty = false,
+  destructive = false,
   onSubmit,
   onCancel,
   theme,
   isDark,
 }: TagInputProps) {
   const [value, setValue] = useState('');
+  const [staged, setStaged] = useState<string[]>([]);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const suggestions = useMemo(() => suggestTags(value, vocabulary), [value, vocabulary]);
+  const isStaged = (tag: string) => staged.some((s) => s.toLowerCase() === tag.toLowerCase());
 
-  // Focus on mount so the Owner can type straight away, and keep the highlight
-  // in range as the suggestion list shrinks/grows under the cursor.
+  // The chips shown above the box: the vocabulary, plus any staged Tag that is
+  // brand-new (typed, not yet in the vocabulary) so the Owner can see it staged.
+  const displayTags = useMemo(() => {
+    const out = [...vocabulary];
+    for (const s of staged) {
+      if (!out.some((t) => t.toLowerCase() === s.toLowerCase())) out.push(s);
+    }
+    return out;
+  }, [vocabulary, staged]);
+
+  // Unstaged Tags whose name begins with the typed text — the Tab/arrow targets.
+  const suggestions = useMemo(
+    () => suggestTags(value, vocabulary).filter((t) => !isStaged(t)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [value, vocabulary, staged],
+  );
+
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
@@ -50,11 +71,19 @@ export default function TagInput({
     setActive(0);
   }, [value]);
 
-  const canSubmit = allowEmpty || value.trim() !== '';
+  const stageTag = (tag: string) => {
+    setStaged((prev) => withTag(prev, tag));
+  };
 
-  const commit = (v: string) => {
-    if (!allowEmpty && v.trim() === '') return;
-    onSubmit(v);
+  const toggleChip = (tag: string) => {
+    setStaged((prev) => (isStaged(tag) ? withoutTag(prev, tag) : withTag(prev, tag)));
+    inputRef.current?.focus();
+  };
+
+  // Commit everything staged, folding in whatever is still typed in the box.
+  const commit = () => {
+    const typed = resolveTag(value, vocabulary);
+    onSubmit(typed ? withTag(staged, typed) : staged);
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -75,7 +104,15 @@ export default function TagInput({
     }
     if (e.key === 'Enter') {
       e.preventDefault();
-      commit(value);
+      // Non-empty box: stage the typed/completed Tag and clear, ready for the
+      // next one. Empty box: commit everything staged.
+      if (value.trim() !== '') {
+        const typed = resolveTag(value, vocabulary);
+        if (typed) stageTag(typed);
+        setValue('');
+      } else {
+        commit();
+      }
       return;
     }
     if (e.key === 'Escape') {
@@ -84,64 +121,83 @@ export default function TagInput({
     }
   };
 
-  const highlight = isDark ? 'bg-white/15 text-white' : 'bg-black/10 text-black';
+  const q = value.trim().toLowerCase();
+  const matches = (tag: string) => q === '' || tag.toLowerCase().startsWith(q);
+  const visible = (tag: string) => isStaged(tag) || matches(tag);
+  const activeTag = suggestions[active];
+
+  const stagedColors = isDark ? 'border-white text-white' : 'border-black text-black';
+  const idleHover = isDark ? 'hover:border-white/40' : 'hover:border-black/40';
+  const idleColors = `${theme.border} ${theme.textPrimary} ${idleHover}`;
+  // Ring marks the chip Tab will complete to (the active suggestion).
+  const activeRing = isDark ? 'ring-2 ring-inset ring-white/50' : 'ring-2 ring-inset ring-black/40';
+  const submitColors = destructive
+    ? 'text-red-400 hover:text-red-600'
+    : `rounded-full ${theme.textSecondary} ${theme.textHover}`;
 
   return (
-    <div className="relative flex items-center gap-3">
-      {/* Suggestions open upward: the action bar is pinned to the bottom edge. */}
-      {suggestions.length > 0 && (
-        <ul
-          className={`absolute bottom-full left-0 mb-2 max-h-56 w-56 overflow-auto rounded-xl border py-1 shadow-lg backdrop-blur ${theme.navBg} ${theme.border}`}
-        >
-          {suggestions.map((tag, i) => (
-            <li key={tag}>
+    <div className="relative">
+      {/* Chips float above the box so it never grows vertically; the row is
+          unclipped (it lives outside the MorphPill). Non-matching, unstaged
+          chips collapse + fade out as the Owner types. */}
+      {displayTags.length > 0 && (
+        <div className="absolute bottom-full left-1/2 mb-3 flex max-w-[80vw] -translate-x-1/2 flex-wrap justify-center animate-fadeInFast">
+          {displayTags.map((tag) => {
+            const shown = visible(tag);
+            const staged = isStaged(tag);
+            return (
               <button
+                key={tag}
                 type="button"
-                // mousedown (not click) so the suggestion commits before the
-                // input's blur can tear the bar down.
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  commit(tag);
-                }}
-                className={`block w-full px-4 py-1.5 text-left text-sm tracking-wide transition-colors duration-150 cursor-pointer ${
-                  i === active ? highlight : `${theme.textPrimary}`
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => toggleChip(tag)}
+                aria-pressed={staged}
+                className={`inline-flex items-center overflow-hidden whitespace-nowrap rounded-full border text-sm tracking-wide font-medium transition-all duration-300 cursor-pointer ${
+                  shown
+                    ? 'm-1 max-w-[14rem] px-4 py-1.5 opacity-100'
+                    : 'm-0 max-w-0 border-transparent px-0 py-1.5 opacity-0 pointer-events-none'
+                } ${staged ? stagedColors : idleColors} ${
+                  tag === activeTag && !staged ? activeRing : ''
                 }`}
               >
                 {tag}
               </button>
-            </li>
-          ))}
-        </ul>
+            );
+          })}
+        </div>
       )}
 
-      <input
-        ref={inputRef}
-        type="text"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={onKeyDown}
-        placeholder={placeholder}
-        aria-label={placeholder}
-        autoComplete="off"
-        spellCheck={false}
-        className={`w-56 rounded-full border bg-transparent px-4 py-1.5 text-sm tracking-wide outline-none transition-colors duration-200 ${theme.border} ${theme.textPrimary}`}
-      />
-      <button
-        type="button"
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => commit(value)}
-        disabled={!canSubmit}
-        className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors duration-200 cursor-pointer disabled:opacity-40 disabled:cursor-default ${theme.textPrimary} ${theme.textHover}`}
+      <div
+        className={`flex items-center gap-3 rounded-full border px-5 py-3 shadow-lg backdrop-blur ${theme.navBg} ${theme.border}`}
       >
-        {submitLabel}
-      </button>
-      <button
-        type="button"
-        onClick={onCancel}
-        className={`rounded-full px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 ${theme.textSecondary} ${theme.textHover}`}
-      >
-        Cancel
-      </button>
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder={placeholder}
+          aria-label={placeholder}
+          autoComplete="off"
+          spellCheck={false}
+          className={`w-56 bg-transparent px-1 text-sm tracking-wide outline-none ${theme.textPrimary}`}
+        />
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={commit}
+          className={`px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 ${submitColors}`}
+        >
+          {submitLabel}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className={`rounded-full px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 ${theme.textSecondary} ${theme.textHover}`}
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }

@@ -5,7 +5,7 @@ import FilterBar from '../components/FilterBar';
 import MorphPill from '../components/MorphPill';
 import TagInput from '../components/TagInput';
 import { collectTags, filterPhotos, nextTagMode, type TagMode } from '../lib/filters';
-import { resolveTag, withTag, withoutTag, sameTagSet } from '../lib/tags';
+import { withTag, withoutTag, sameTagSet } from '../lib/tags';
 import { reorder, type Move } from '../lib/reorder';
 import { uploadPhoto } from '../lib/upload';
 import type { Orientation } from '../lib/orientation';
@@ -148,32 +148,28 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
     if (results.some((ok) => !ok)) void loadPhotos();
   };
 
-  // Add a Tag to every selected Photo. The typed name is canonicalized against
-  // the whole vocabulary (existing casing wins; a new name is created by first
-  // use), and Photos that already carry it are left unchanged.
-  const applyTag = (input: string) => {
-    const tag = resolveTag(input, allTags);
-    if (!tag) {
+  // Add the staged Tags to every selected Photo (TagInput canonicalizes casing
+  // and creates new Tags by first use). Photos that already carry a Tag are left
+  // unchanged. Nothing staged is a no-op.
+  const applyTag = (tags: string[]) => {
+    if (tags.length === 0) {
       setBarMode('select');
       return;
     }
-    void writeTags(selectedPhotos.map((p) => ({ id: p.id, tags: withTag(p.tags, tag) })));
+    void writeTags(
+      selectedPhotos.map((p) => ({ id: p.id, tags: tags.reduce(withTag, p.tags) })),
+    );
   };
 
-  // Remove a Tag from every selected Photo — or, on a blank entry, strip all
-  // Tags from the selection. The name is matched case-insensitively, so a Photo
-  // that doesn't carry it is simply untouched.
-  const applyUntag = (input: string) => {
-    const trimmed = input.trim();
-    if (trimmed === '') {
-      void writeTags(selectedPhotos.map((p) => ({ id: p.id, tags: [] })));
-      return;
-    }
-    // resolveTag only returns null for blank input, handled above, so a
-    // non-blank entry always yields a Tag (an existing one's casing, or the
-    // typed name verbatim).
-    const tag = resolveTag(trimmed, selectionTags) as string;
-    void writeTags(selectedPhotos.map((p) => ({ id: p.id, tags: withoutTag(p.tags, tag) })));
+  // Remove the staged Tags from every selected Photo — or, when nothing is
+  // staged, strip all Tags from the selection (the blank-entry case). Matching
+  // is case-insensitive, so a Photo that doesn't carry a Tag is simply untouched.
+  const applyUntag = (tags: string[]) => {
+    const target =
+      tags.length === 0
+        ? selectedPhotos.map((p) => ({ id: p.id, tags: [] }))
+        : selectedPhotos.map((p) => ({ id: p.id, tags: tags.reduce(withoutTag, p.tags) }));
+    void writeTags(target);
   };
 
   // Persist a reorder (issue #9): write each moved Photo's new fractional
@@ -517,92 +513,95 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
       </div>
 
       {/* Edit Mode action bar: fixed, bottom-centre, shown once something is
-          selected. 'select' lists the actions; Tag/Untag open an inline entry
-          box (applied immediately, selection kept — issue #10); Delete arms a
-          confirm step, since removing the Cloudinary asset can't be undone. The
-          bar grows/shrinks smoothly between states (MorphPill). */}
+          selected. 'select' lists the actions (the pill morphs between select
+          and the Delete confirm); Tag/Untag swap in their own entry box, which
+          floats the Tag chips above it unclipped (issue #10), applies on commit
+          and keeps the selection; Delete arms a confirm step, since removing the
+          Cloudinary asset can't be undone. */}
       {editMode && selected.size > 0 && (
         <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 animate-fadeInMed">
-          <MorphPill className={`rounded-full border shadow-lg backdrop-blur ${theme.navBg} ${theme.border}`}>
-            <div key={barMode} className="flex items-center gap-4 px-5 py-3 animate-fadeInFast">
-              {barMode === 'confirm' ? (
-                <>
-                  <span className={`text-sm ${theme.textPrimary}`}>
-                    Delete {selected.size} photo{selected.size === 1 ? '' : 's'}? This can’t be undone.
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setBarMode('select')}
-                    disabled={deleting}
-                    className={`rounded-full px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 ${theme.textSecondary} ${theme.textHover} disabled:opacity-40`}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={deleteSelected}
-                    disabled={deleting}
-                    className={`px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 text-red-400 hover:text-red-600 disabled:opacity-40`}
-                  >
-                    {deleting ? 'Deleting…' : 'Confirm'}
-                  </button>
-                </>
-              ) : barMode === 'tag' ? (
-                <TagInput
-                  vocabulary={allTags}
-                  placeholder={`Add tag to ${selected.size}…`}
-                  submitLabel="Add"
-                  onSubmit={applyTag}
-                  onCancel={() => setBarMode('select')}
-                  theme={theme}
-                  isDark={isDark}
-                />
-              ) : barMode === 'untag' ? (
-                <TagInput
-                  vocabulary={selectionTags}
-                  placeholder="Remove tag (blank = all)…"
-                  submitLabel="Remove"
-                  allowEmpty
-                  onSubmit={applyUntag}
-                  onCancel={() => setBarMode('select')}
-                  theme={theme}
-                  isDark={isDark}
-                />
-              ) : (
-                <>
-                  <span className={`text-sm ${theme.textPrimary}`}>{selected.size} Selected</span>
-                  <button
-                    type="button"
-                    onClick={() => setSelected(new Set())}
-                    className={`rounded-full px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 ${theme.textSecondary} ${theme.textHover}`}
-                  >
-                    Clear
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBarMode('tag')}
-                    className={`rounded-full px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 ${theme.textPrimary} ${theme.textHover}`}
-                  >
-                    Tag
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBarMode('untag')}
-                    className={`rounded-full px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 ${theme.textPrimary} ${theme.textHover}`}
-                  >
-                    Untag
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBarMode('confirm')}
-                    className={`px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 text-red-400 hover:text-red-600`}
-                  >
-                    Delete
-                  </button>
-                </>
-              )}
-            </div>
-          </MorphPill>
+          {barMode === 'tag' ? (
+            <TagInput
+              vocabulary={allTags}
+              placeholder="Add tag"
+              submitLabel="Add"
+              onSubmit={applyTag}
+              onCancel={() => setBarMode('select')}
+              theme={theme}
+              isDark={isDark}
+            />
+          ) : barMode === 'untag' ? (
+            <TagInput
+              vocabulary={selectionTags}
+              placeholder="Remove tag(s)"
+              submitLabel="Remove"
+              destructive
+              onSubmit={applyUntag}
+              onCancel={() => setBarMode('select')}
+              theme={theme}
+              isDark={isDark}
+            />
+          ) : (
+            <MorphPill className={`rounded-full border shadow-lg backdrop-blur ${theme.navBg} ${theme.border}`}>
+              <div key={barMode} className="flex items-center gap-4 px-5 py-3 animate-fadeInFast">
+                {barMode === 'confirm' ? (
+                  <>
+                    <span className={`text-sm ${theme.textPrimary}`}>
+                      Delete {selected.size} photo{selected.size === 1 ? '' : 's'}? This can’t be undone.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setBarMode('select')}
+                      disabled={deleting}
+                      className={`rounded-full px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 ${theme.textSecondary} ${theme.textHover} disabled:opacity-40`}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={deleteSelected}
+                      disabled={deleting}
+                      className={`px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 text-red-400 hover:text-red-600 disabled:opacity-40`}
+                    >
+                      {deleting ? 'Deleting…' : 'Confirm'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className={`text-sm ${theme.textPrimary}`}>{selected.size} Selected</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelected(new Set())}
+                      className={`rounded-full px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 ${theme.textSecondary} ${theme.textHover}`}
+                    >
+                      Clear
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBarMode('tag')}
+                      className={`rounded-full px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 ${theme.textSecondary} ${theme.textHover}`}
+                    >
+                      Tag
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBarMode('untag')}
+                      className={`rounded-full px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 ${theme.textSecondary} ${theme.textHover}`}
+                    >
+                      Untag
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBarMode('confirm')}
+                      className={`px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 text-red-400 hover:text-red-600`}
+                    >
+                      Delete
+                    </button>
+                  </>
+                )}
+              </div>
+            </MorphPill>
+          )}
         </div>
       )}
     </div>
