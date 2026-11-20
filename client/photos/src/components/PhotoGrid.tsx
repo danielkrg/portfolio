@@ -41,23 +41,46 @@ function useMeasuredWidth(ref: React.RefObject<HTMLElement | null>): number {
 
 function PhotoFigure({
   photo,
+  nextId,
   span,
   rowSpan,
   editMode,
   selected,
+  reorderable,
+  dragging,
+  insertBefore,
+  insertAfterLast,
   theme,
   onOpen,
   onToggleSelect,
+  onDragStartCell,
+  onDragHover,
+  onDropCell,
+  onDragEndCell,
   registerRef,
 }: {
   photo: Photo;
+  /** The id of the Photo that follows this one in Master Order (null if last). */
+  nextId: string | null;
   span: number;
   rowSpan: number;
   editMode: boolean;
   selected: boolean;
+  reorderable: boolean;
+  /** This cell is part of the block currently being dragged (dim it). */
+  dragging: boolean;
+  /** Show the drop indicator on this cell's leading edge (block lands before it). */
+  insertBefore: boolean;
+  /** This is the last cell and the block will land at the very end. */
+  insertAfterLast: boolean;
   theme: PhotosTheme;
   onOpen: (el: HTMLElement) => void;
   onToggleSelect: (id: string) => void;
+  onDragStartCell: (id: string) => void;
+  /** Hover during a drag: `targetId` is the Photo to insert before (null = end). */
+  onDragHover: (targetId: string | null) => void;
+  onDropCell: () => void;
+  onDragEndCell: () => void;
   registerRef: (id: string, el: HTMLElement | null) => void;
 }) {
   // In Edit Mode the cell is a selection toggle, not a door into the viewer.
@@ -69,11 +92,12 @@ function PhotoFigure({
       // selects instead, so drop it there and show the plain pointer.
       data-cursor={editMode ? undefined : 'image'}
       data-orientation={deriveOrientation(photo.width, photo.height)}
+      draggable={reorderable}
       // outline-none clears the UA focus ring left after a mouse click (and on
       // return from the viewer); focus-visible restores one for keyboard users.
-      className={`relative overflow-hidden outline-none focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-3px] ${
+      className={`relative overflow-hidden outline-none transition-opacity duration-150 focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-3px] ${
         editMode ? 'cursor-pointer' : ''
-      }`}
+      } ${reorderable ? 'cursor-grab active:cursor-grabbing' : ''} ${dragging ? 'opacity-40' : ''}`}
       style={{ gridColumn: `span ${span}`, gridRow: `span ${rowSpan}` }}
       onClick={(e) => activate(e.currentTarget)}
       onKeyDown={(e) => {
@@ -82,6 +106,34 @@ function PhotoFigure({
           activate(e.currentTarget);
         }
       }}
+      onDragStart={(e) => {
+        // Firefox requires data to be set for a drag to begin at all.
+        e.dataTransfer.setData('text/plain', photo.id);
+        e.dataTransfer.effectAllowed = 'move';
+        onDragStartCell(photo.id);
+      }}
+      onDragOver={
+        reorderable
+          ? (e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+              // Leading half of the cell → land before it; trailing half → land
+              // before the next cell (null past the last one, i.e. at the end).
+              const rect = e.currentTarget.getBoundingClientRect();
+              const after = e.clientX - rect.left > rect.width / 2;
+              onDragHover(after ? nextId : photo.id);
+            }
+          : undefined
+      }
+      onDrop={
+        reorderable
+          ? (e) => {
+              e.preventDefault();
+              onDropCell();
+            }
+          : undefined
+      }
+      onDragEnd={reorderable ? onDragEndCell : undefined}
       role="button"
       tabIndex={0}
       aria-pressed={editMode ? selected : undefined}
@@ -134,6 +186,15 @@ function PhotoFigure({
           )}
         </>
       )}
+      {/* Drop indicator: a bar on the edge where the dragged block will land —
+          the leading edge of the cell it drops before, or the trailing edge of
+          the last cell when it drops at the very end. */}
+      {insertBefore && (
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-white shadow-[0_0_6px_rgba(255,255,255,0.9)]" />
+      )}
+      {insertAfterLast && (
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-1 bg-white shadow-[0_0_6px_rgba(255,255,255,0.9)]" />
+      )}
     </figure>
   );
 }
@@ -147,6 +208,26 @@ interface PhotoGridProps {
   selectedIds?: ReadonlySet<string>;
   /** Toggle a Photo's selection (Edit Mode only). */
   onToggleSelect?: (id: string) => void;
+  /**
+   * Enable drag-to-reorder (issue #9). Only true in unfiltered Edit Mode: a
+   * reorder rewrites Master Order, which is meaningful only over the whole set,
+   * so a filtered view (which hides Photos) never offers it.
+   */
+  reorderable?: boolean;
+  /**
+   * Commit a drag: move the Photos in `movingIds` so they land before
+   * `targetId` (null = at the end). The parent computes the fractional positions
+   * and persists them (see lib/reorder).
+   */
+  onReorder?: (movingIds: string[], targetId: string | null) => void;
+}
+
+/** The in-flight drag: which Photos are moving, and where they'll land. */
+interface DragState {
+  /** The block being dragged, as an id set (for dimming its cells). */
+  moving: ReadonlySet<string>;
+  /** The Photo the block will land before, or null for the end of the set. */
+  before: string | null;
 }
 
 /**
@@ -162,11 +243,14 @@ export default function PhotoGrid({
   editMode = false,
   selectedIds,
   onToggleSelect,
+  reorderable = false,
+  onReorder,
 }: PhotoGridProps) {
   const columnCount = useColumnCount();
   const gridRef = useRef<HTMLDivElement | null>(null);
   const gridWidth = useMeasuredWidth(gridRef);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [drag, setDrag] = useState<DragState | null>(null);
   // Live map of each Photo's figure element, keyed by id, so the viewer can
   // measure the cell to expand from (on open) and collapse back into (on close).
   const figureEls = useRef(new Map<string, HTMLElement>());
@@ -189,6 +273,33 @@ export default function PhotoGrid({
     if (!el) return null;
     el.scrollIntoView({ block: 'center' });
     return el.getBoundingClientRect();
+  };
+
+  // Begin a drag from `id`. If the grabbed Photo is part of a multi-selection,
+  // the whole selection travels as one contiguous block (in Master Order);
+  // otherwise just the grabbed Photo moves — grabbing an unselected Photo does
+  // not disturb the selection.
+  const startDrag = (id: string) => {
+    const movingSelection = (selectedIds?.size ?? 0) > 1 && selectedIds?.has(id);
+    const moving = movingSelection
+      ? new Set(photos.filter((p) => selectedIds!.has(p.id)).map((p) => p.id))
+      : new Set([id]);
+    setDrag({ moving, before: null });
+  };
+
+  // Update the drop point as the cursor moves over a cell. Hovering a cell that
+  // is itself being dragged leaves the indicator where it is (you can't drop a
+  // block inside itself).
+  const hoverDrag = (targetId: string | null) =>
+    setDrag((d) => {
+      if (!d) return d;
+      if (targetId != null && d.moving.has(targetId)) return d;
+      return { ...d, before: targetId };
+    });
+
+  const dropDrag = () => {
+    if (drag) onReorder?.([...drag.moving], drag.before);
+    setDrag(null);
   };
 
   // Map a Photo to its position in the displayed set, so the viewer pages
@@ -225,20 +336,32 @@ export default function PhotoGrid({
           gap: `${GAP}px`,
         }}
       >
-        {laidOut.map(({ photo, span, rowSpan }) => (
-          <PhotoFigure
-            key={photo.id}
-            photo={photo}
-            span={span}
-            rowSpan={rowSpan}
-            editMode={editMode}
-            selected={selectedIds?.has(photo.id) ?? false}
-            theme={theme}
-            onOpen={(el) => openPhoto(photo, el)}
-            onToggleSelect={(id) => onToggleSelect?.(id)}
-            registerRef={registerRef}
-          />
-        ))}
+        {laidOut.map(({ photo, span, rowSpan }, i) => {
+          const isLast = i === laidOut.length - 1;
+          return (
+            <PhotoFigure
+              key={photo.id}
+              photo={photo}
+              nextId={isLast ? null : laidOut[i + 1].photo.id}
+              span={span}
+              rowSpan={rowSpan}
+              editMode={editMode}
+              selected={selectedIds?.has(photo.id) ?? false}
+              reorderable={reorderable}
+              dragging={drag?.moving.has(photo.id) ?? false}
+              insertBefore={drag != null && drag.before === photo.id}
+              insertAfterLast={drag != null && drag.before === null && isLast}
+              theme={theme}
+              onOpen={(el) => openPhoto(photo, el)}
+              onToggleSelect={(id) => onToggleSelect?.(id)}
+              onDragStartCell={startDrag}
+              onDragHover={hoverDrag}
+              onDropCell={dropDrag}
+              onDragEndCell={() => setDrag(null)}
+              registerRef={registerRef}
+            />
+          );
+        })}
       </div>
 
       {openIndex !== null && (

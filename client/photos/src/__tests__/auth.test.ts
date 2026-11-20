@@ -36,6 +36,7 @@ const gateway: PhotoGateway = {
   listPhotos: async () => [],
   deletePhoto: async () => {},
   uploadPhoto: async () => uploadedPhoto,
+  setPosition: async () => {},
 };
 
 // Build an app whose auth seam knows PASSWORD_HASH. Each call gets a FRESH auth
@@ -151,6 +152,7 @@ describe('POST /api/photos (upload, Owner-only)', () => {
         uploads.push(input);
         return uploadedPhoto;
       },
+      setPosition: async () => {},
     };
     return { gw, uploads };
   }
@@ -225,6 +227,7 @@ describe('POST /api/photos (upload, Owner-only)', () => {
       uploadPhoto: async () => {
         throw new Error('cloudinary unavailable');
       },
+      setPosition: async () => {},
     };
     const agent = request.agent(makeAppWith(gw));
     await agent.post('/api/photos/login').send({ password: PASSWORD });
@@ -244,6 +247,7 @@ describe('DELETE /api/photos/:id (Owner-only)', () => {
         deleted.push(id);
       },
       uploadPhoto: async () => uploadedPhoto,
+      setPosition: async () => {},
     };
     return { gw, deleted };
   }
@@ -280,10 +284,78 @@ describe('DELETE /api/photos/:id (Owner-only)', () => {
         throw new Error('cloudinary unavailable');
       },
       uploadPhoto: async () => uploadedPhoto,
+      setPosition: async () => {},
     };
     const agent = request.agent(makeAppWith(gw));
     await agent.post('/api/photos/login').send({ password: PASSWORD });
     expect((await agent.delete('/api/photos/DSCF6913')).status).toBe(502);
+  });
+});
+
+describe('PATCH /api/photos/:id/position (reorder, Owner-only)', () => {
+  // A gateway that records the (id, position) writes it was asked to persist, so
+  // we can assert a reorder reaches Cloudinary (ADR-0001) without a real account.
+  function recordingGateway() {
+    const writes: Array<{ id: string; position: number }> = [];
+    const gw: PhotoGateway = {
+      listPhotos: async () => [],
+      deletePhoto: async () => {},
+      uploadPhoto: async () => uploadedPhoto,
+      setPosition: async (id: string, position: number) => {
+        writes.push({ id, position });
+      },
+    };
+    return { gw, writes };
+  }
+
+  function makeAppWith(gw: PhotoGateway) {
+    const auth = createAuth({ jwtSecret: 'test-secret', passwordHash: PASSWORD_HASH, userId: 'me', isProd: false });
+    const app = express();
+    app.use(express.json());
+    app.use('/api/photos', createPhotosRouter(gw, auth));
+    return app;
+  }
+
+  it('rejects an unauthenticated reorder and never touches the gateway', async () => {
+    const { gw, writes } = recordingGateway();
+    const res = await request(makeAppWith(gw))
+      .patch('/api/photos/DSCF6913/position')
+      .send({ position: 12.5 });
+    expect(res.status).toBe(401);
+    expect(writes).toEqual([]);
+  });
+
+  it('persists a fractional position via the gateway when authenticated', async () => {
+    const { gw, writes } = recordingGateway();
+    const agent = request.agent(makeAppWith(gw));
+    await agent.post('/api/photos/login').send({ password: PASSWORD });
+    const res = await agent.patch('/api/photos/DSCF6913/position').send({ position: 12.5 });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ ok: true, id: 'DSCF6913', position: 12.5 });
+    expect(writes).toEqual([{ id: 'DSCF6913', position: 12.5 }]);
+  });
+
+  it('rejects a non-numeric position with 400 and never touches the gateway', async () => {
+    const { gw, writes } = recordingGateway();
+    const agent = request.agent(makeAppWith(gw));
+    await agent.post('/api/photos/login').send({ password: PASSWORD });
+    const res = await agent.patch('/api/photos/DSCF6913/position').send({ position: 'top' });
+    expect(res.status).toBe(400);
+    expect(writes).toEqual([]);
+  });
+
+  it('responds 502 when the gateway fails', async () => {
+    const gw: PhotoGateway = {
+      listPhotos: async () => [],
+      deletePhoto: async () => {},
+      uploadPhoto: async () => uploadedPhoto,
+      setPosition: async () => {
+        throw new Error('cloudinary unavailable');
+      },
+    };
+    const agent = request.agent(makeAppWith(gw));
+    await agent.post('/api/photos/login').send({ password: PASSWORD });
+    expect((await agent.patch('/api/photos/DSCF6913/position').send({ position: 1 })).status).toBe(502);
   });
 });
 

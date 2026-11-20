@@ -48,6 +48,12 @@ export interface PhotoGateway {
    * client reads Orientation from (GLOSSARY: Orientation).
    */
   uploadPhoto(input: UploadInput): Promise<Photo>;
+  /**
+   * Write a Photo's Master-Order `position` (GLOSSARY: Master Order) to its
+   * Cloudinary contextual metadata. Reordering is fractional, so this touches
+   * only the moved Photo(s); the rest keep their positions.
+   */
+  setPosition(publicId: string, position: number): Promise<void>;
 }
 
 // Owner-namespaced asset folder (ADR-0002: photos/<userId>/…, single user `me`
@@ -164,5 +170,13 @@ export const cloudinaryGateway: PhotoGateway = {
       tags: result.tags ?? [],
       context: { custom: { position: String(position) } },
     });
+  },
+
+  async setPosition(publicId: string, position: number): Promise<void> {
+    ensureConfigured();
+    // add_context merges the `position` key into the asset's existing
+    // contextual metadata (leaving caption/alt/etc. untouched), keyed by the
+    // bare public_id the list endpoint hands the client under dynamic folders.
+    await cloudinary.uploader.add_context(`position=${position}`, [publicId]);
   },
 };
