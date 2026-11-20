@@ -129,6 +129,9 @@ export default function TagInput({
   const stagedColors = isDark ? 'border-white text-white' : 'border-black text-black';
   const idleHover = isDark ? 'hover:border-white/40' : 'hover:border-black/40';
   const idleColors = `${theme.border} ${theme.textPrimary} ${idleHover}`;
+  // A translucent fill (over the border) so chips stay legible against the
+  // gallery behind them.
+  const chipBg = isDark ? 'bg-black/50' : 'bg-white/70';
   // Ring marks the chip Tab will complete to (the active suggestion).
   const activeRing = isDark ? 'ring-2 ring-inset ring-white/50' : 'ring-2 ring-inset ring-black/40';
   const submitColors = destructive
@@ -141,7 +144,7 @@ export default function TagInput({
           unclipped (it lives outside the MorphPill). Non-matching, unstaged
           chips collapse + fade out as the Owner types. */}
       {displayTags.length > 0 && (
-        <div className="absolute bottom-full left-1/2 mb-3 flex max-w-[80vw] -translate-x-1/2 flex-wrap justify-center animate-fadeInFast">
+        <div className="absolute bottom-full left-0 mb-3 flex max-w-[80vw] flex-wrap justify-start animate-fadeInFast">
           {displayTags.map((tag) => {
             const shown = visible(tag);
             const staged = isStaged(tag);
@@ -152,7 +155,7 @@ export default function TagInput({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => toggleChip(tag)}
                 aria-pressed={staged}
-                className={`inline-flex items-center overflow-hidden whitespace-nowrap rounded-full border text-sm tracking-wide font-medium transition-all duration-300 cursor-pointer ${
+                className={`inline-flex items-center overflow-hidden whitespace-nowrap rounded-full border text-sm tracking-wide font-medium backdrop-blur-sm transition-all duration-300 cursor-pointer ${chipBg} ${
                   shown
                     ? 'm-1 max-w-[14rem] px-4 py-1.5 opacity-100'
                     : 'm-0 max-w-0 border-transparent px-0 py-1.5 opacity-0 pointer-events-none'
@@ -168,7 +171,7 @@ export default function TagInput({
       )}
 
       <div
-        className={`flex items-center gap-3 rounded-full border px-5 py-3 shadow-lg backdrop-blur ${theme.navBg} ${theme.border}`}
+        className={`flex items-center gap-2 rounded-full border px-4 py-3 shadow-lg backdrop-blur ${theme.navBg} ${theme.border}`}
       >
         <input
           ref={inputRef}
@@ -180,7 +183,9 @@ export default function TagInput({
           aria-label={placeholder}
           autoComplete="off"
           spellCheck={false}
-          className={`w-56 bg-transparent px-1 text-sm tracking-wide outline-none ${theme.textPrimary}`}
+          // h-5/leading-5 + border-0 strip the UA input chrome so the box is the
+          // same height as the other action-bar states (which have no input).
+          className={`h-5 w-36 appearance-none border-0 bg-transparent px-1 py-0 text-sm leading-5 tracking-wide outline-none ${theme.textPrimary}`}
         />
         <button
           type="button"
