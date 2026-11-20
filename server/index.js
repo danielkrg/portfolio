@@ -9,6 +9,7 @@ import cors from 'cors';
 import session from 'express-session';
 
 import starSyncRouter from './apps/starsync/routes.js';
+import photosRouter from './apps/photos/routes.ts';
 // import portfolioRouter from './apps/portfolio/routes.js';
 
 const app = express();
@@ -44,6 +45,7 @@ const allowedOrigins = [
 
 // Mount routers
 app.use('/api/starsync', starSyncRouter);
+app.use('/api/photos', photosRouter);
 // app.use('/api/portfolio', portfolioRouter);
 
 // app.get('/', (req, res) => res.json({ status: 'ok' }));

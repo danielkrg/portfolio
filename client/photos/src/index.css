@@ -1,0 +1,9 @@
+/*
+ * Scoped styles for the Photos app. Tailwind utilities and the portfolio's
+ * fonts/animations are provided globally by the host portfolio stylesheet
+ * (client/portfolio/src/index.css), so this file only carries Photos-specific
+ * rules.
+ */
+.photos {
+  font-family: var(--font-sans, sans-serif);
+}

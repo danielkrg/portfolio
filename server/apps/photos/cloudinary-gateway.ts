@@ -1,0 +1,205 @@
+import { v2 as cloudinary, type UploadApiResponse } from 'cloudinary';
+
+/**
+ * A Photo as served by the public API. Dimensions are carried raw so the client
+ * can keep true aspect ratios and derive Orientation; Master Order is `position`.
+ */
+export interface Photo {
+  id: string;
+  url: string;
+  thumbnailUrl: string;
+  width: number;
+  height: number;
+  tags: string[];
+  caption: string | null;
+  alt: string | null;
+  position: number;
+}
+
+/**
+ * A processed image ready to become a new Photo. The bytes have already been
+ * downscaled and EXIF-stripped in the browser (issue #8); the server only
+ * relays them to Cloudinary and seeds their place in Master Order.
+ */
+export interface UploadInput {
+  /** The processed image bytes (a web-friendly JPEG/WebP; never raw HEIC). */
+  data: Buffer;
+  /**
+   * The Master Order `position` to seed this Photo at. New uploads sort ahead
+   * of existing Photos (newest-first) until the Owner reorders; see the route.
+   */
+  position: number;
+}
+
+/**
+ * The single seam through which the rest of the server reaches Cloudinary
+ * (ADR-0001). Server code depends on this interface; tests fake it.
+ */
+export interface PhotoGateway {
+  listPhotos(): Promise<Photo[]>;
+  /**
+   * Permanently remove a Photo's underlying Cloudinary asset by its public_id.
+   * Idempotent: deleting an already-gone asset resolves rather than throwing.
+   */
+  deletePhoto(publicId: string): Promise<void>;
+  /**
+   * Upload processed image bytes as a new Photo under the Owner's asset folder,
+   * returning it with the width/height Cloudinary derived — the dimensions the
+   * client reads Orientation from (GLOSSARY: Orientation).
+   */
+  uploadPhoto(input: UploadInput): Promise<Photo>;
+  /**
+   * Write a Photo's Master-Order `position` (GLOSSARY: Master Order) to its
+   * Cloudinary contextual metadata. Reordering is fractional, so this touches
+   * only the moved Photo(s); the rest keep their positions.
+   */
+  setPosition(publicId: string, position: number): Promise<void>;
+  /**
+   * Replace a Photo's entire Tag set (GLOSSARY: Tag), identified by its bare
+   * public_id. Tag/untag edits the whole set at once (issue #10): the client
+   * computes each Photo's target Tags (add = union, remove = difference, strip =
+   * empty) and sends it, so removing a Tag a Photo doesn't carry is a no-op.
+   * An empty list clears every Tag. Tags leave the shared vocabulary once no
+   * Photo carries them, so there is no separate registry to prune.
+   */
+  setTags(publicId: string, tags: string[]): Promise<void>;
+}
+
+// Owner-namespaced asset folder (ADR-0002: photos/<userId>/…, single user `me`
+// for now). This is a Cloudinary *asset folder*, not a public_id prefix: the
+// account uses dynamic folders, where an asset's public_id is independent of the
+// folder it lives in (a Media-Library upload to photos/me keeps a bare public_id
+// like "DSCF6913"), so we list by asset_folder, not by public_id prefix.
+const OWNER_FOLDER = 'photos/me';
+
+// Unpositioned Photos sort after positioned ones, deterministically by id.
+const UNSET_POSITION = Number.MAX_SAFE_INTEGER;
+
+// Shape of the Cloudinary Admin API resources we consume.
+interface CloudinaryResource {
+  public_id: string;
+  secure_url: string;
+  width: number;
+  height: number;
+  tags?: string[];
+  context?: { custom?: Record<string, string> };
+}
+
+let configured = false;
+
+// Configure the SDK lazily (at first call), after dotenv has populated env.
+function ensureConfigured(): void {
+  if (configured) return;
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+    secure: true,
+  });
+  configured = true;
+}
+
+function toPhoto(resource: CloudinaryResource): Photo {
+  const custom = resource.context?.custom ?? {};
+  const rawPosition = custom.position;
+  return {
+    id: resource.public_id,
+    url: resource.secure_url,
+    thumbnailUrl: cloudinary.url(resource.public_id, {
+      secure: true,
+      // Larger + higher quality than a true thumbnail: the grid trades a longer
+      // initial load for images that look sharp without opening the viewer.
+      transformation: [{ width: 1600, crop: 'limit', quality: 'auto:good', fetch_format: 'auto' }],
+    }),
+    width: resource.width,
+    height: resource.height,
+    tags: resource.tags ?? [],
+    caption: custom.caption ?? null,
+    alt: custom.alt ?? null,
+    position: rawPosition != null && rawPosition !== '' ? Number(rawPosition) : UNSET_POSITION,
+  };
+}
+
+function byMasterOrder(a: Photo, b: Photo): number {
+  return a.position - b.position || a.id.localeCompare(b.id);
+}
+
+export const cloudinaryGateway: PhotoGateway = {
+  async listPhotos(): Promise<Photo[]> {
+    ensureConfigured();
+    const result = await cloudinary.api.resources_by_asset_folder(OWNER_FOLDER, {
+      max_results: 500,
+      context: true,
+      tags: true,
+    });
+    const resources = (result.resources ?? []) as unknown as CloudinaryResource[];
+    return resources.map(toPhoto).sort(byMasterOrder);
+  },
+
+  async deletePhoto(publicId: string): Promise<void> {
+    ensureConfigured();
+    // destroy() addresses the asset by public_id. Under dynamic folders the
+    // public_id is bare (decoupled from asset_folder), which is exactly the id
+    // the list endpoint already hands the client, so no translation is needed.
+    // `result: 'not found'` means it was already gone — treat that as success.
+    const res = await cloudinary.uploader.destroy(publicId, { invalidate: true });
+    if (res.result !== 'ok' && res.result !== 'not found') {
+      throw new Error(`Cloudinary destroy failed for ${publicId}: ${res.result}`);
+    }
+  },
+
+  async uploadPhoto({ data, position }: UploadInput): Promise<Photo> {
+    ensureConfigured();
+    // Stream the buffer to Cloudinary. We target the Owner's *asset_folder* (not
+    // a public_id prefix) because the account uses dynamic folders — the same
+    // namespace listPhotos reads back from. `position` is seeded as contextual
+    // metadata so the new Photo sorts into Master Order on the next list.
+    const result = await new Promise<UploadApiResponse>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          asset_folder: OWNER_FOLDER,
+          resource_type: 'image',
+          context: { position: String(position) },
+        },
+        (error, uploaded) => {
+          if (uploaded) resolve(uploaded);
+          else reject(error ?? new Error('Cloudinary upload returned no result'));
+        },
+      );
+      stream.end(data);
+    });
+
+    // Build the Photo from the upload result (Cloudinary supplies width/height),
+    // reusing the same mapper the list endpoint uses so the contract is identical.
+    return toPhoto({
+      public_id: result.public_id,
+      secure_url: result.secure_url,
+      width: result.width,
+      height: result.height,
+      tags: result.tags ?? [],
+      context: { custom: { position: String(position) } },
+    });
+  },
+
+  async setPosition(publicId: string, position: number): Promise<void> {
+    ensureConfigured();
+    // add_context merges the `position` key into the asset's existing
+    // contextual metadata (leaving caption/alt/etc. untouched), keyed by the
+    // bare public_id the list endpoint hands the client under dynamic folders.
+    await cloudinary.uploader.add_context(`position=${position}`, [publicId]);
+  },
+
+  async setTags(publicId: string, tags: string[]): Promise<void> {
+    ensureConfigured();
+    // replace_tag swaps the asset's entire tag set for the given list in one
+    // atomic call (comma-delimited); remove_all_tags is its empty-set form,
+    // since replace_tag needs at least one tag. Keyed by the bare public_id the
+    // list endpoint hands the client under dynamic folders. Cloudinary tags
+    // can't contain commas, so joining on ',' is lossless.
+    if (tags.length === 0) {
+      await cloudinary.uploader.remove_all_tags([publicId]);
+    } else {
+      await cloudinary.uploader.replace_tag(tags.join(','), [publicId]);
+    }
+  },
+};

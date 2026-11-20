@@ -5,6 +5,7 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
     "../starsync/src/**/*.{js,ts,jsx,tsx}",
+    "../photos/src/**/*.{js,ts,jsx,tsx}",
     "../_shared/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
