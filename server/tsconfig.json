@@ -8,6 +8,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
     "types": []
   },
   "include": ["apps/**/*.ts", "scripts/**/*.ts"]

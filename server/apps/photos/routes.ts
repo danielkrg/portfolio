@@ -1,13 +1,13 @@
 import { Router, type Request, type Response } from 'express';
 import cookieParser from 'cookie-parser';
 import multer from 'multer';
-import { cloudinaryGateway, type PhotoGateway } from './cloudinary-gateway';
+import { cloudinaryGateway, type PhotoGateway } from './cloudinary-gateway.ts';
 import {
   createAuth,
   OWNER_USER_ID,
   type Auth,
   type AuthedRequest,
-} from './auth';
+} from './auth.ts';
 
 // The browser downscales/strips each image before sending (issue #8), so the
 // processed upload is comfortably under Cloudinary's 10 MB cap; 12 MB leaves
