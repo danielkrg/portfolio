@@ -4,6 +4,7 @@ import PhotoGrid from '../components/PhotoGrid';
 import FilterBar from '../components/FilterBar';
 import MorphPill from '../components/MorphPill';
 import { collectTags, filterPhotos, nextTagMode, type TagMode } from '../lib/filters';
+import { reorder, type Move } from '../lib/reorder';
 import { uploadPhoto } from '../lib/upload';
 import type { Orientation } from '../lib/orientation';
 import type { Photo, PhotosAppProps } from '../types';
@@ -102,6 +103,39 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
     setDeleting(false);
   };
 
+  // Persist a reorder (issue #9): write each moved Photo's new fractional
+  // position to Cloudinary (PATCH, Owner-gated). Fractional positions mean only
+  // the moved Photos are touched. If any write fails the local order may diverge
+  // from what the server stored, so resync from the API to be safe.
+  const persistPositions = async (moved: Move[]) => {
+    const results = await Promise.all(
+      moved.map((m) =>
+        fetch(`/api/photos/${encodeURIComponent(m.id)}/position`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ position: m.position }),
+        })
+          .then((res) => res.ok)
+          .catch(() => false),
+      ),
+    );
+    if (results.some((ok) => !ok)) void loadPhotos();
+  };
+
+  // Commit a drag-reorder: move `movingIds` before `targetId` (null = end),
+  // applying fractional positions to the moved Photos only (lib/reorder). The
+  // grid updates optimistically; the new positions are persisted in the
+  // background. Reordering acts on the whole set, and is only ever invoked from
+  // the unfiltered view, so Master Order stays canonical.
+  const handleReorder = (movingIds: string[], targetId: string | null) => {
+    if (load.status !== 'ready') return;
+    const { ordered, moved } = reorder(load.photos, movingIds, targetId);
+    if (moved.length === 0) return;
+    setLoad({ status: 'ready', photos: ordered });
+    void persistPositions(moved);
+  };
+
   // Seed a freshly uploaded Photo at the front of the grid: new Photos are
   // newest-first in Master Order (issue #8), and the array order is the display
   // order, so prepending puts the latest upload on top.
@@ -156,23 +190,23 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
     };
   }, []);
 
+  // Load (or reload) the gallery from the API. Reused on mount and to resync
+  // after a reorder whose persistence partially failed, so the grid always ends
+  // up matching the Master Order the server actually stored.
+  const loadPhotos = async () => {
+    try {
+      const res = await fetch('/api/photos');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: { photos?: Photo[] } = await res.json();
+      setLoad({ status: 'ready', photos: Array.isArray(data.photos) ? data.photos : [] });
+    } catch {
+      setLoad({ status: 'error' });
+    }
+  };
+
   useEffect(() => {
-    let active = true;
-    fetch('/api/photos')
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then((data: { photos?: Photo[] }) => {
-        if (!active) return;
-        setLoad({ status: 'ready', photos: Array.isArray(data.photos) ? data.photos : [] });
-      })
-      .catch(() => {
-        if (active) setLoad({ status: 'error' });
-      });
-    return () => {
-      active = false;
-    };
+    void loadPhotos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // The jump arrow lives on the cover; hide it once the visitor scrolls the
@@ -195,6 +229,27 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
     return () => clearTimeout(timer);
   }, [uploadError]);
 
+  // Keyboard shortcut: `e` toggles Edit Mode, mirroring the Edit button — so
+  // only for the Owner and only once there are Photos to curate. Ignored while
+  // typing or with a modifier held, so it never fights a real text field or an
+  // OS/browser shortcut.
+  const hasPhotos = load.status === 'ready' && load.photos.length > 0;
+  useEffect(() => {
+    if (!isOwner || !hasPhotos) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'e' && e.key !== 'E') return;
+      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+      toggleEditMode();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOwner, hasPhotos, editMode]);
+
   const jumpToGallery = () => {
     galleryRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -205,6 +260,11 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
     () => filterPhotos(allPhotos, orientations, tagModes),
     [allPhotos, orientations, tagModes],
   );
+
+  // A filtered view hides Photos, so it can't express a reorder of the whole
+  // set; drag-reorder is therefore offered only in unfiltered Edit Mode (#9).
+  const filtersActive = orientations.size > 0 || Object.keys(tagModes).length > 0;
+  const reorderable = isOwner && editMode && !filtersActive;
 
   return (
     <div className={`relative min-h-screen transition-colors duration-500 ${theme.bg}`}>
@@ -226,11 +286,10 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
         <div className="absolute inset-0 overflow-hidden">
           <img src={coverUrl} alt="" className="h-full w-full object-cover" />
           <div className="absolute inset-0 flex items-center justify-end mr-10 p-8 sm:p-16">
-            <div className="max-w-sm text-right text-white">
-              <h2 className="font-clash text-4xl md:text-5xl mb-4">Placeholder title</h2>
-              <p className="font-light text-white/80">
-                Placeholder description — a short line of copy introducing the
-                gallery will live here.
+            <div className="max-w-sm text-left text-white">
+              <h2 className="font-bold text-4xl md:text-5xl mb-4">My Journey</h2>
+              <p className="text-white/80">
+                Photography is my favourite mean of creative expression. 
               </p>
             </div>
           </div>
@@ -360,6 +419,8 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
             editMode={editMode}
             selectedIds={selected}
             onToggleSelect={toggleSelect}
+            reorderable={reorderable}
+            onReorder={handleReorder}
           />
         )}
       </div>

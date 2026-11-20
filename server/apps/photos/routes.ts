@@ -93,6 +93,28 @@ export function createPhotosRouter(gateway: PhotoGateway, auth: Auth): Router {
     }
   });
 
+  // PATCH /api/photos/:id/position — set a Photo's Master-Order position (issue
+  // #9), Owner-only. Reordering in unfiltered Edit Mode drags a Photo (or a
+  // contiguous multi-selection) to a new slot; the client computes fractional
+  // positions so only the moved Photos are rewritten, then PATCHes each one. The
+  // id is the Photo's public_id (bare under dynamic folders), URL-encoded by the
+  // client.
+  router.patch('/:id/position', auth.requireOwner, async (req: Request, res: Response) => {
+    const publicId = req.params.id;
+    const position = Number((req.body as { position?: unknown })?.position);
+    if (!Number.isFinite(position)) {
+      res.status(400).json({ error: 'position must be a finite number' });
+      return;
+    }
+    try {
+      await gateway.setPosition(publicId, position);
+      res.json({ ok: true, id: publicId, position });
+    } catch (err) {
+      console.error(`Failed to set position for ${publicId}:`, err);
+      res.status(502).json({ error: 'Failed to set position' });
+    }
+  });
+
   // DELETE /api/photos/:id — remove a Photo and its underlying Cloudinary asset
   // (ADR-0001), Owner-only. The single Owner's gateway addresses only their own
   // account, so requireOwner is the authorization gate; the id is the Photo's

@@ -39,25 +39,66 @@ function useMeasuredWidth(ref: React.RefObject<HTMLElement | null>): number {
   return width;
 }
 
+/**
+ * The nearest scrollable ancestor of `el` — the element that actually scrolls
+ * when the gallery overflows. The portfolio host mounts the Photos app inside a
+ * `fixed inset-0 overflow-y-scroll` container, so this is that wrapper, not the
+ * window; falls back to the document root if none is found.
+ */
+function scrollParentOf(el: HTMLElement | null): Element | null {
+  let node: HTMLElement | null = el?.parentElement ?? null;
+  while (node) {
+    const { overflowY } = getComputedStyle(node);
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  return document.scrollingElement;
+}
+
 function PhotoFigure({
   photo,
+  nextId,
   span,
   rowSpan,
   editMode,
   selected,
+  reorderable,
+  dragging,
+  insertBefore,
+  insertAfterLast,
   theme,
   onOpen,
   onToggleSelect,
+  onDragStartCell,
+  onDragHover,
+  onDropCell,
+  onDragEndCell,
   registerRef,
 }: {
   photo: Photo;
+  /** The id of the Photo that follows this one in Master Order (null if last). */
+  nextId: string | null;
   span: number;
   rowSpan: number;
   editMode: boolean;
   selected: boolean;
+  reorderable: boolean;
+  /** This cell is part of the block currently being dragged (dim it). */
+  dragging: boolean;
+  /** Show the drop indicator on this cell's leading edge (block lands before it). */
+  insertBefore: boolean;
+  /** This is the last cell and the block will land at the very end. */
+  insertAfterLast: boolean;
   theme: PhotosTheme;
   onOpen: (el: HTMLElement) => void;
   onToggleSelect: (id: string) => void;
+  onDragStartCell: (id: string) => void;
+  /** Hover during a drag: `targetId` is the Photo to insert before (null = end). */
+  onDragHover: (targetId: string | null) => void;
+  onDropCell: () => void;
+  onDragEndCell: () => void;
   registerRef: (id: string, el: HTMLElement | null) => void;
 }) {
   // In Edit Mode the cell is a selection toggle, not a door into the viewer.
@@ -69,11 +110,12 @@ function PhotoFigure({
       // selects instead, so drop it there and show the plain pointer.
       data-cursor={editMode ? undefined : 'image'}
       data-orientation={deriveOrientation(photo.width, photo.height)}
+      draggable={reorderable}
       // outline-none clears the UA focus ring left after a mouse click (and on
       // return from the viewer); focus-visible restores one for keyboard users.
-      className={`relative overflow-hidden outline-none focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-3px] ${
+      className={`relative overflow-hidden outline-none transition-opacity duration-150 focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-3px] ${
         editMode ? 'cursor-pointer' : ''
-      }`}
+      } ${reorderable ? 'cursor-grab active:cursor-grabbing' : ''} ${dragging ? 'opacity-40' : ''}`}
       style={{ gridColumn: `span ${span}`, gridRow: `span ${rowSpan}` }}
       onClick={(e) => activate(e.currentTarget)}
       onKeyDown={(e) => {
@@ -82,6 +124,34 @@ function PhotoFigure({
           activate(e.currentTarget);
         }
       }}
+      onDragStart={(e) => {
+        // Firefox requires data to be set for a drag to begin at all.
+        e.dataTransfer.setData('text/plain', photo.id);
+        e.dataTransfer.effectAllowed = 'move';
+        onDragStartCell(photo.id);
+      }}
+      onDragOver={
+        reorderable
+          ? (e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+              // Leading half of the cell → land before it; trailing half → land
+              // before the next cell (null past the last one, i.e. at the end).
+              const rect = e.currentTarget.getBoundingClientRect();
+              const after = e.clientX - rect.left > rect.width / 2;
+              onDragHover(after ? nextId : photo.id);
+            }
+          : undefined
+      }
+      onDrop={
+        reorderable
+          ? (e) => {
+              e.preventDefault();
+              onDropCell();
+            }
+          : undefined
+      }
+      onDragEnd={reorderable ? onDragEndCell : undefined}
       role="button"
       tabIndex={0}
       aria-pressed={editMode ? selected : undefined}
@@ -134,6 +204,15 @@ function PhotoFigure({
           )}
         </>
       )}
+      {/* Drop indicator: a bar on the edge where the dragged block will land —
+          the leading edge of the cell it drops before, or the trailing edge of
+          the last cell when it drops at the very end. */}
+      {insertBefore && (
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-white shadow-[0_0_6px_rgba(255,255,255,0.9)]" />
+      )}
+      {insertAfterLast && (
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-1 bg-white shadow-[0_0_6px_rgba(255,255,255,0.9)]" />
+      )}
     </figure>
   );
 }
@@ -147,6 +226,26 @@ interface PhotoGridProps {
   selectedIds?: ReadonlySet<string>;
   /** Toggle a Photo's selection (Edit Mode only). */
   onToggleSelect?: (id: string) => void;
+  /**
+   * Enable drag-to-reorder (issue #9). Only true in unfiltered Edit Mode: a
+   * reorder rewrites Master Order, which is meaningful only over the whole set,
+   * so a filtered view (which hides Photos) never offers it.
+   */
+  reorderable?: boolean;
+  /**
+   * Commit a drag: move the Photos in `movingIds` so they land before
+   * `targetId` (null = at the end). The parent computes the fractional positions
+   * and persists them (see lib/reorder).
+   */
+  onReorder?: (movingIds: string[], targetId: string | null) => void;
+}
+
+/** The in-flight drag: which Photos are moving, and where they'll land. */
+interface DragState {
+  /** The block being dragged, as an id set (for dimming its cells). */
+  moving: ReadonlySet<string>;
+  /** The Photo the block will land before, or null for the end of the set. */
+  before: string | null;
 }
 
 /**
@@ -162,11 +261,14 @@ export default function PhotoGrid({
   editMode = false,
   selectedIds,
   onToggleSelect,
+  reorderable = false,
+  onReorder,
 }: PhotoGridProps) {
   const columnCount = useColumnCount();
   const gridRef = useRef<HTMLDivElement | null>(null);
   const gridWidth = useMeasuredWidth(gridRef);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [drag, setDrag] = useState<DragState | null>(null);
   // Live map of each Photo's figure element, keyed by id, so the viewer can
   // measure the cell to expand from (on open) and collapse back into (on close).
   const figureEls = useRef(new Map<string, HTMLElement>());
@@ -190,6 +292,92 @@ export default function PhotoGrid({
     el.scrollIntoView({ block: 'center' });
     return el.getBoundingClientRect();
   };
+
+  // Begin a drag from `id`. If the grabbed Photo is part of a multi-selection,
+  // the whole selection travels as one contiguous block (in Master Order);
+  // otherwise just the grabbed Photo moves — grabbing an unselected Photo does
+  // not disturb the selection.
+  const startDrag = (id: string) => {
+    const movingSelection = (selectedIds?.size ?? 0) > 1 && selectedIds?.has(id);
+    const moving = movingSelection
+      ? new Set(photos.filter((p) => selectedIds!.has(p.id)).map((p) => p.id))
+      : new Set([id]);
+    setDrag({ moving, before: null });
+  };
+
+  // Update the drop point as the cursor moves over a cell. Hovering a cell that
+  // is itself being dragged leaves the indicator where it is (you can't drop a
+  // block inside itself).
+  const hoverDrag = (targetId: string | null) =>
+    setDrag((d) => {
+      if (!d) return d;
+      if (targetId != null && d.moving.has(targetId)) return d;
+      return { ...d, before: targetId };
+    });
+
+  const dropDrag = () => {
+    if (drag) onReorder?.([...drag.moving], drag.before);
+    setDrag(null);
+  };
+
+  // Edge auto-scroll while dragging. A native HTML5 drag never scrolls on its
+  // own, so a trackpad user holding a Photo can't reach rows off-screen. The
+  // gallery does not scroll the window — the portfolio host mounts the app in a
+  // `fixed inset-0 overflow-y-scroll` container (PhotosWrapper) — so we find the
+  // nearest scrollable ancestor and scroll *that*. While a drag is in flight we
+  // watch the pointer at the window level (cells only fire dragover over
+  // themselves, missing the gaps and margins near the edges) and run a rAF loop
+  // that scrolls when the pointer enters the top/bottom band, ramping speed up
+  // toward the edge. Gated on *whether* a drag is active, not on the drag
+  // object, so the loop isn't torn down each time the drop target changes.
+  const dragging = drag !== null;
+  useEffect(() => {
+    if (!dragging) return;
+    const scroller = scrollParentOf(gridRef.current);
+    if (!scroller) return;
+    const EDGE = 90; // px band at each edge that triggers scrolling
+    const MAX_SPEED = 36; // px per frame at the very edge
+    let pointerY = 0;
+    let frame = 0;
+    let running = false;
+
+    // Scroll speed for a pointer at viewport-y `y`: negative (up) near the
+    // scroller's top edge, positive (down) near its bottom edge, zero between.
+    const speedAt = (y: number) => {
+      const isRoot = scroller === document.scrollingElement;
+      const top = isRoot ? 0 : scroller.getBoundingClientRect().top;
+      const bottom = isRoot ? window.innerHeight : scroller.getBoundingClientRect().bottom;
+      const intoTop = EDGE - (y - top);
+      const intoBottom = y - (bottom - EDGE);
+      if (intoTop > 0) return -MAX_SPEED * Math.min(1, intoTop / EDGE);
+      if (intoBottom > 0) return MAX_SPEED * Math.min(1, intoBottom / EDGE);
+      return 0;
+    };
+
+    const step = () => {
+      const speed = speedAt(pointerY);
+      if (speed === 0) {
+        running = false;
+        return;
+      }
+      scroller.scrollBy(0, speed);
+      frame = requestAnimationFrame(step);
+    };
+
+    const onDragOver = (e: DragEvent) => {
+      pointerY = e.clientY;
+      if (!running && speedAt(pointerY) !== 0) {
+        running = true;
+        frame = requestAnimationFrame(step);
+      }
+    };
+
+    window.addEventListener('dragover', onDragOver);
+    return () => {
+      window.removeEventListener('dragover', onDragOver);
+      cancelAnimationFrame(frame);
+    };
+  }, [dragging]);
 
   // Map a Photo to its position in the displayed set, so the viewer pages
   // through `photos` in Master Order regardless of grid placement.
@@ -225,20 +413,32 @@ export default function PhotoGrid({
           gap: `${GAP}px`,
         }}
       >
-        {laidOut.map(({ photo, span, rowSpan }) => (
-          <PhotoFigure
-            key={photo.id}
-            photo={photo}
-            span={span}
-            rowSpan={rowSpan}
-            editMode={editMode}
-            selected={selectedIds?.has(photo.id) ?? false}
-            theme={theme}
-            onOpen={(el) => openPhoto(photo, el)}
-            onToggleSelect={(id) => onToggleSelect?.(id)}
-            registerRef={registerRef}
-          />
-        ))}
+        {laidOut.map(({ photo, span, rowSpan }, i) => {
+          const isLast = i === laidOut.length - 1;
+          return (
+            <PhotoFigure
+              key={photo.id}
+              photo={photo}
+              nextId={isLast ? null : laidOut[i + 1].photo.id}
+              span={span}
+              rowSpan={rowSpan}
+              editMode={editMode}
+              selected={selectedIds?.has(photo.id) ?? false}
+              reorderable={reorderable}
+              dragging={drag?.moving.has(photo.id) ?? false}
+              insertBefore={drag != null && drag.before === photo.id}
+              insertAfterLast={drag != null && drag.before === null && isLast}
+              theme={theme}
+              onOpen={(el) => openPhoto(photo, el)}
+              onToggleSelect={(id) => onToggleSelect?.(id)}
+              onDragStartCell={startDrag}
+              onDragHover={hoverDrag}
+              onDropCell={dropDrag}
+              onDragEndCell={() => setDrag(null)}
+              registerRef={registerRef}
+            />
+          );
+        })}
       </div>
 
       {openIndex !== null && (

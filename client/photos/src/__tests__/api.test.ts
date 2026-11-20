@@ -38,6 +38,7 @@ describe('GET /api/photos', () => {
       listPhotos: async () => [photo],
       deletePhoto: async () => {},
       uploadPhoto: async () => photo,
+      setPosition: async () => {},
     };
 
     // No Authorization header is sent — the list endpoint is public.
@@ -54,6 +55,7 @@ describe('GET /api/photos', () => {
       },
       deletePhoto: async () => {},
       uploadPhoto: async () => photo,
+      setPosition: async () => {},
     };
 
     const res = await request(makeApp(gateway)).get('/api/photos');
