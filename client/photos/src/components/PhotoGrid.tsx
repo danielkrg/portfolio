@@ -336,7 +336,7 @@ export default function PhotoGrid({
     const scroller = scrollParentOf(gridRef.current);
     if (!scroller) return;
     const EDGE = 90; // px band at each edge that triggers scrolling
-    const MAX_SPEED = 24; // px per frame at the very edge
+    const MAX_SPEED = 36; // px per frame at the very edge
     let pointerY = 0;
     let frame = 0;
     let running = false;

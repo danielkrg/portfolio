@@ -229,6 +229,27 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
     return () => clearTimeout(timer);
   }, [uploadError]);
 
+  // Keyboard shortcut: `e` toggles Edit Mode, mirroring the Edit button — so
+  // only for the Owner and only once there are Photos to curate. Ignored while
+  // typing or with a modifier held, so it never fights a real text field or an
+  // OS/browser shortcut.
+  const hasPhotos = load.status === 'ready' && load.photos.length > 0;
+  useEffect(() => {
+    if (!isOwner || !hasPhotos) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'e' && e.key !== 'E') return;
+      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+      toggleEditMode();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOwner, hasPhotos, editMode]);
+
   const jumpToGallery = () => {
     galleryRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
