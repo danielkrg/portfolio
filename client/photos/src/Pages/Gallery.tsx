@@ -373,7 +373,7 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
         <div className="absolute inset-0 overflow-hidden">
           <img src={coverUrl} alt="" className="h-full w-full object-cover" />
           <div className="absolute inset-0 flex items-center justify-end mr-10 p-8 sm:p-16">
-            <div className="max-w-sm text-justify text-black/80">
+            <div className="max-w-sm text-justify text-black/80 -translate-y-[10px] sm:translate-y-0">
               <h2 className="font-bold tracking-wider text-4xl md:text-5xl mb-4">Capturing Moments</h2>
               <p>
                 Photography is my favourite mean of creative expression beacuse it pushes me to search for beauty and intrigue wherever I go.
