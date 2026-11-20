@@ -376,7 +376,7 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
             <div className="max-w-sm text-justify text-black/80 -translate-y-[25px] sm:translate-y-0">
               <h2 className="font-bold tracking-wider text-4xl md:text-5xl mb-4">Capturing Moments</h2>
               <p>
-                Photography is my favourite mean of creative expression beacuse it pushes me to search for beauty and intrigue wherever I go.
+                Photography is my favourite mean of creative expression because it pushes me to search for beauty and intrigue wherever I go.
                 It then becomes a puzzle - how can I capture a subject in the most interesting way given the constraint of what my camera can see?
                 This is a curation of the moments where I felt like I solved that puzzle.
               </p>
