@@ -39,6 +39,24 @@ function useMeasuredWidth(ref: React.RefObject<HTMLElement | null>): number {
   return width;
 }
 
+/**
+ * The nearest scrollable ancestor of `el` — the element that actually scrolls
+ * when the gallery overflows. The portfolio host mounts the Photos app inside a
+ * `fixed inset-0 overflow-y-scroll` container, so this is that wrapper, not the
+ * window; falls back to the document root if none is found.
+ */
+function scrollParentOf(el: HTMLElement | null): Element | null {
+  let node: HTMLElement | null = el?.parentElement ?? null;
+  while (node) {
+    const { overflowY } = getComputedStyle(node);
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  return document.scrollingElement;
+}
+
 function PhotoFigure({
   photo,
   nextId,
@@ -301,6 +319,65 @@ export default function PhotoGrid({
     if (drag) onReorder?.([...drag.moving], drag.before);
     setDrag(null);
   };
+
+  // Edge auto-scroll while dragging. A native HTML5 drag never scrolls on its
+  // own, so a trackpad user holding a Photo can't reach rows off-screen. The
+  // gallery does not scroll the window — the portfolio host mounts the app in a
+  // `fixed inset-0 overflow-y-scroll` container (PhotosWrapper) — so we find the
+  // nearest scrollable ancestor and scroll *that*. While a drag is in flight we
+  // watch the pointer at the window level (cells only fire dragover over
+  // themselves, missing the gaps and margins near the edges) and run a rAF loop
+  // that scrolls when the pointer enters the top/bottom band, ramping speed up
+  // toward the edge. Gated on *whether* a drag is active, not on the drag
+  // object, so the loop isn't torn down each time the drop target changes.
+  const dragging = drag !== null;
+  useEffect(() => {
+    if (!dragging) return;
+    const scroller = scrollParentOf(gridRef.current);
+    if (!scroller) return;
+    const EDGE = 90; // px band at each edge that triggers scrolling
+    const MAX_SPEED = 24; // px per frame at the very edge
+    let pointerY = 0;
+    let frame = 0;
+    let running = false;
+
+    // Scroll speed for a pointer at viewport-y `y`: negative (up) near the
+    // scroller's top edge, positive (down) near its bottom edge, zero between.
+    const speedAt = (y: number) => {
+      const isRoot = scroller === document.scrollingElement;
+      const top = isRoot ? 0 : scroller.getBoundingClientRect().top;
+      const bottom = isRoot ? window.innerHeight : scroller.getBoundingClientRect().bottom;
+      const intoTop = EDGE - (y - top);
+      const intoBottom = y - (bottom - EDGE);
+      if (intoTop > 0) return -MAX_SPEED * Math.min(1, intoTop / EDGE);
+      if (intoBottom > 0) return MAX_SPEED * Math.min(1, intoBottom / EDGE);
+      return 0;
+    };
+
+    const step = () => {
+      const speed = speedAt(pointerY);
+      if (speed === 0) {
+        running = false;
+        return;
+      }
+      scroller.scrollBy(0, speed);
+      frame = requestAnimationFrame(step);
+    };
+
+    const onDragOver = (e: DragEvent) => {
+      pointerY = e.clientY;
+      if (!running && speedAt(pointerY) !== 0) {
+        running = true;
+        frame = requestAnimationFrame(step);
+      }
+    };
+
+    window.addEventListener('dragover', onDragOver);
+    return () => {
+      window.removeEventListener('dragover', onDragOver);
+      cancelAnimationFrame(frame);
+    };
+  }, [dragging]);
 
   // Map a Photo to its position in the displayed set, so the viewer pages
   // through `photos` in Master Order regardless of grid placement.
