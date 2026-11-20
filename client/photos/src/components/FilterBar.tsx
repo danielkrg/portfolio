@@ -63,8 +63,9 @@ export default function FilterBar({
 
   return (
     <div className="flex w-full items-end justify-between gap-6 pl-2 pr-2">
-      {/* Tags: left, wrapping once they reach the middle of the screen. */}
-      <div className="flex max-w-[33%] flex-wrap gap-2.5">
+      {/* Tags: left, wrapping once they reach the middle of the screen. Given
+          more room on narrow screens (50%), tightened to a third from sm up. */}
+      <div className="flex max-w-[50%] flex-wrap gap-2.5 sm:max-w-[33%]">
         {tags.map((tag) => {
           const mode = tagModes[tag];
           const colors =
