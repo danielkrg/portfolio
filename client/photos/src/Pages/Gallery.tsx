@@ -373,10 +373,12 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
         <div className="absolute inset-0 overflow-hidden">
           <img src={coverUrl} alt="" className="h-full w-full object-cover" />
           <div className="absolute inset-0 flex items-center justify-end mr-10 p-8 sm:p-16">
-            <div className="max-w-sm text-left text-white">
-              <h2 className="font-bold text-4xl md:text-5xl mb-4">My Journey</h2>
-              <p className="text-white/80">
-                Photography is my favourite mean of creative expression. 
+            <div className="max-w-sm text-justify text-black/80">
+              <h2 className="font-bold tracking-wider text-4xl md:text-5xl mb-4">Capturing Moments</h2>
+              <p>
+                Photography is my favourite mean of creative expression beacuse it pushes me to search for beauty and intrigue wherever I go.
+                It then becomes a puzzle - how can I capture a subject in the most interesting way given the constraint of what my camera can see?
+                This is a curation of the moments where I felt like I solved that puzzle.
               </p>
             </div>
           </div>
@@ -465,7 +467,7 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
             title's vertical centre. (Exit lives fixed at the top-left.) */}
         <div className="flex items-center gap-6 pb-5">
           <div className="h-px flex-1 bg-white/15" />
-          <h1 className={`text-7xl font-extrabold tracking-wide md:text-8xl ${theme.textPrimary}`}>
+          <h1 className={`text-7xl font-extrabold tracking-wider md:text-8xl ${theme.textPrimary}`}>
             Gallery
           </h1>
           <div className="h-px flex-1 bg-white/15" />
