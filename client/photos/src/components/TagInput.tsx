@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from 'react';
+import { createPortal } from 'react-dom';
 import { suggestTags, resolveTag, withTag, withoutTag } from '../lib/tags';
 import type { PhotosTheme } from '../types';
 
@@ -19,16 +27,19 @@ interface TagInputProps {
 }
 
 /**
- * The Tag/Untag entry box (issue #10). A multi-select combobox: the vocabulary
- * is shown as chips floating above a single-line box, and the Owner stages as
- * many Tags as they like before committing them in one action.
+ * The Tag/Untag entry box (issue #10). A multi-select combobox that renders as
+ * inline children of the shared Edit action-bar pill (so it morphs between
+ * states and matches their height), with the vocabulary shown as chips.
  *
- * Typing filters the chips — non-matching ones fade out (case-insensitive, so
- * "b" keeps "B&W") — without ever growing the box vertically. Tab completes the
- * box to the highlighted match; pressing Enter on a non-empty box stages that
- * Tag and clears the box (so Tab+Enter picks a suggestion); clicking a chip
- * toggles it. Committing happens only on Enter with an empty box or on the
- * submit button, and applies every staged Tag at once. Esc cancels.
+ * The chips float above the bar via a portal: the pill is `overflow-hidden` for
+ * its size morph, so anything positioned above it would be clipped — the portal
+ * pins the chips to the bar's top edge instead, keeping the box a single line.
+ *
+ * Typing filters the chips — non-matching ones fade/collapse (case-insensitive,
+ * so "b" keeps "B&W"). Tab completes the box to the highlighted match; Enter on
+ * a non-empty box stages that Tag and clears the box (Tab+Enter picks a
+ * suggestion); clicking a chip toggles it. Committing — every staged Tag at once
+ * — happens only on Enter with an empty box or via the submit button. Esc cancels.
  */
 export default function TagInput({
   vocabulary,
@@ -43,6 +54,7 @@ export default function TagInput({
   const [value, setValue] = useState('');
   const [staged, setStaged] = useState<string[]>([]);
   const [active, setActive] = useState(0);
+  const [anchor, setAnchor] = useState<{ left: number; bottom: number } | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const isStaged = (tag: string) => staged.some((s) => s.toLowerCase() === tag.toLowerCase());
@@ -71,9 +83,27 @@ export default function TagInput({
     setActive(0);
   }, [value]);
 
-  const stageTag = (tag: string) => {
-    setStaged((prev) => withTag(prev, tag));
-  };
+  // Keep the portaled chip row pinned to the bar's top-left edge. The bar is the
+  // `[data-actionbar]` wrapper; it morphs width (centred), so its left edge
+  // moves — a ResizeObserver tracks that so the chips follow it.
+  useLayoutEffect(() => {
+    const bar = inputRef.current?.closest('[data-actionbar]') as HTMLElement | null;
+    if (!bar) return;
+    const update = () => {
+      const rect = bar.getBoundingClientRect();
+      setAnchor({ left: rect.left, bottom: window.innerHeight - rect.top + 12 });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(bar);
+    window.addEventListener('resize', update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', update);
+    };
+  }, []);
+
+  const stageTag = (tag: string) => setStaged((prev) => withTag(prev, tag));
 
   const toggleChip = (tag: string) => {
     setStaged((prev) => (isStaged(tag) ? withoutTag(prev, tag) : withTag(prev, tag)));
@@ -139,70 +169,69 @@ export default function TagInput({
     : `rounded-full ${theme.textSecondary} ${theme.textHover}`;
 
   return (
-    <div className="relative">
-      {/* Chips float above the box so it never grows vertically; the row is
-          unclipped (it lives outside the MorphPill). Non-matching, unstaged
-          chips collapse + fade out as the Owner types. */}
-      {displayTags.length > 0 && (
-        <div className="absolute bottom-full left-0 mb-3 flex max-w-[80vw] flex-wrap justify-start animate-fadeInFast">
-          {displayTags.map((tag) => {
-            const shown = visible(tag);
-            const staged = isStaged(tag);
-            return (
-              <button
-                key={tag}
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => toggleChip(tag)}
-                aria-pressed={staged}
-                className={`inline-flex items-center overflow-hidden whitespace-nowrap rounded-full border text-sm tracking-wide font-medium backdrop-blur-sm transition-all duration-300 cursor-pointer ${chipBg} ${
-                  shown
-                    ? 'm-1 max-w-[14rem] px-4 py-1.5 opacity-100'
-                    : 'm-0 max-w-0 border-transparent px-0 py-1.5 opacity-0 pointer-events-none'
-                } ${staged ? stagedColors : idleColors} ${
-                  tag === activeTag && !staged ? activeRing : ''
-                }`}
-              >
-                {tag}
-              </button>
-            );
-          })}
-        </div>
-      )}
+    <>
+      {anchor != null &&
+        displayTags.length > 0 &&
+        createPortal(
+          <div
+            style={{ position: 'fixed', left: anchor.left, bottom: anchor.bottom, maxWidth: '80vw' }}
+            className="z-50 flex flex-wrap justify-start animate-fadeInFast"
+          >
+            {displayTags.map((tag) => {
+              const shown = visible(tag);
+              const stagedTag = isStaged(tag);
+              return (
+                <button
+                  key={tag}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => toggleChip(tag)}
+                  aria-pressed={stagedTag}
+                  className={`inline-flex items-center overflow-hidden whitespace-nowrap rounded-full border text-sm tracking-wide font-medium backdrop-blur-sm transition-all duration-300 cursor-pointer ${chipBg} ${
+                    shown
+                      ? 'm-1 max-w-[14rem] px-4 py-1.5 opacity-100'
+                      : 'm-0 max-w-0 border-transparent px-0 py-1.5 opacity-0 pointer-events-none'
+                  } ${stagedTag ? stagedColors : idleColors} ${
+                    tag === activeTag && !stagedTag ? activeRing : ''
+                  }`}
+                >
+                  {tag}
+                </button>
+              );
+            })}
+          </div>,
+          document.body,
+        )}
 
-      <div
-        className={`flex items-center gap-2 rounded-full border px-4 py-3 shadow-lg backdrop-blur ${theme.navBg} ${theme.border}`}
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={onKeyDown}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        autoComplete="off"
+        spellCheck={false}
+        // h-5/leading-5 + border-0 strip the UA input chrome so the row is the
+        // same height as the other action-bar states (which have no input).
+        className={`h-5 w-36 appearance-none border-0 bg-transparent px-1 py-0 text-sm leading-5 tracking-wide outline-none ${theme.textPrimary}`}
+      />
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={commit}
+        className={`px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 ${submitColors}`}
       >
-        <input
-          ref={inputRef}
-          type="text"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder={placeholder}
-          aria-label={placeholder}
-          autoComplete="off"
-          spellCheck={false}
-          // h-5/leading-5 + border-0 strip the UA input chrome so the box is the
-          // same height as the other action-bar states (which have no input).
-          className={`h-5 w-36 appearance-none border-0 bg-transparent px-1 py-0 text-sm leading-5 tracking-wide outline-none ${theme.textPrimary}`}
-        />
-        <button
-          type="button"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={commit}
-          className={`px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 ${submitColors}`}
-        >
-          {submitLabel}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className={`rounded-full px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 ${theme.textSecondary} ${theme.textHover}`}
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
+        {submitLabel}
+      </button>
+      <button
+        type="button"
+        onClick={onCancel}
+        className={`rounded-full px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 ${theme.textSecondary} ${theme.textHover}`}
+      >
+        Cancel
+      </button>
+    </>
   );
 }
