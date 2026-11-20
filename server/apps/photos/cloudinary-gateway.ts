@@ -54,6 +54,15 @@ export interface PhotoGateway {
    * only the moved Photo(s); the rest keep their positions.
    */
   setPosition(publicId: string, position: number): Promise<void>;
+  /**
+   * Replace a Photo's entire Tag set (GLOSSARY: Tag), identified by its bare
+   * public_id. Tag/untag edits the whole set at once (issue #10): the client
+   * computes each Photo's target Tags (add = union, remove = difference, strip =
+   * empty) and sends it, so removing a Tag a Photo doesn't carry is a no-op.
+   * An empty list clears every Tag. Tags leave the shared vocabulary once no
+   * Photo carries them, so there is no separate registry to prune.
+   */
+  setTags(publicId: string, tags: string[]): Promise<void>;
 }
 
 // Owner-namespaced asset folder (ADR-0002: photos/<userId>/…, single user `me`
@@ -178,5 +187,19 @@ export const cloudinaryGateway: PhotoGateway = {
     // contextual metadata (leaving caption/alt/etc. untouched), keyed by the
     // bare public_id the list endpoint hands the client under dynamic folders.
     await cloudinary.uploader.add_context(`position=${position}`, [publicId]);
+  },
+
+  async setTags(publicId: string, tags: string[]): Promise<void> {
+    ensureConfigured();
+    // replace_tag swaps the asset's entire tag set for the given list in one
+    // atomic call (comma-delimited); remove_all_tags is its empty-set form,
+    // since replace_tag needs at least one tag. Keyed by the bare public_id the
+    // list endpoint hands the client under dynamic folders. Cloudinary tags
+    // can't contain commas, so joining on ',' is lossless.
+    if (tags.length === 0) {
+      await cloudinary.uploader.remove_all_tags([publicId]);
+    } else {
+      await cloudinary.uploader.replace_tag(tags.join(','), [publicId]);
+    }
   },
 };

@@ -115,6 +115,28 @@ export function createPhotosRouter(gateway: PhotoGateway, auth: Auth): Router {
     }
   });
 
+  // PUT /api/photos/:id/tags — replace a Photo's whole Tag set (issue #10),
+  // Owner-only. Tag/untag edits the full set: the client computes each selected
+  // Photo's target Tags (add = union, remove = difference, strip = empty) and
+  // PUTs it, which makes removing an absent Tag a harmless no-op and an empty
+  // body a "strip all". The id is the Photo's public_id (bare under dynamic
+  // folders), URL-encoded by the client.
+  router.put('/:id/tags', auth.requireOwner, async (req: Request, res: Response) => {
+    const publicId = req.params.id;
+    const tags = (req.body as { tags?: unknown })?.tags;
+    if (!Array.isArray(tags) || !tags.every((t) => typeof t === 'string')) {
+      res.status(400).json({ error: 'tags must be an array of strings' });
+      return;
+    }
+    try {
+      await gateway.setTags(publicId, tags);
+      res.json({ ok: true, id: publicId, tags });
+    } catch (err) {
+      console.error(`Failed to set tags for ${publicId}:`, err);
+      res.status(502).json({ error: 'Failed to set tags' });
+    }
+  });
+
   // DELETE /api/photos/:id — remove a Photo and its underlying Cloudinary asset
   // (ADR-0001), Owner-only. The single Owner's gateway addresses only their own
   // account, so requireOwner is the authorization gate; the id is the Photo's

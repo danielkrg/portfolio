@@ -188,8 +188,8 @@ function PhotoFigure({
           {/* The cell's tags, top-left, styled as the FilterBar pills (same
               shape, padding and type) for one visual language across the app.
               Rows wrap at half the cell width so a heavily-tagged Photo never
-              curtains its whole image. Display-only for now; tag/untag editing
-              arrives in a later slice. */}
+              curtains its whole image. Display-only: tags are edited across the
+              whole selection from the Edit action bar (Tag/Untag, issue #10). */}
           {photo.tags.length > 0 && (
             <div className="pointer-events-none absolute top-2 left-2 flex max-w-[50%] flex-wrap gap-2.5">
               {photo.tags.map((tag) => (

@@ -3,7 +3,9 @@ import { ArrowUpOnSquareIcon, ChevronDownIcon, PencilIcon } from '@heroicons/rea
 import PhotoGrid from '../components/PhotoGrid';
 import FilterBar from '../components/FilterBar';
 import MorphPill from '../components/MorphPill';
+import TagInput from '../components/TagInput';
 import { collectTags, filterPhotos, nextTagMode, type TagMode } from '../lib/filters';
+import { resolveTag, withTag, withoutTag, sameTagSet } from '../lib/tags';
 import { reorder, type Move } from '../lib/reorder';
 import { uploadPhoto } from '../lib/upload';
 import type { Orientation } from '../lib/orientation';
@@ -35,7 +37,10 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
   const [isOwner, setIsOwner] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
-  const [confirming, setConfirming] = useState(false);
+  // The Edit action bar is a small state machine: 'select' lists the actions,
+  // 'confirm' arms the (irreversible) delete, and 'tag'/'untag' open the Tag
+  // entry box (issue #10). Only one is active at a time.
+  const [barMode, setBarMode] = useState<'select' | 'confirm' | 'tag' | 'untag'>('select');
   const [deleting, setDeleting] = useState(false);
   // Upload state (issue #8). `uploading` counts files still in flight in the
   // current action; `uploadError` surfaces a partial failure briefly.
@@ -73,7 +78,7 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
   const exitEditMode = () => {
     setEditMode(false);
     setSelected(new Set());
-    setConfirming(false);
+    setBarMode('select');
   };
 
   const toggleEditMode = () => (editMode ? exitEditMode() : setEditMode(true));
@@ -99,8 +104,76 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
         : prev,
     );
     setSelected((prev) => new Set([...prev].filter((id) => !removed.has(id))));
-    setConfirming(false);
+    setBarMode('select');
     setDeleting(false);
+  };
+
+  // Persist a tag/untag edit (issue #10): PUT each Photo's new full Tag set
+  // (Owner-gated). The client only writes the Photos whose set actually changed,
+  // so untagging a Tag a Photo doesn't carry costs no request. The grid updates
+  // optimistically — which refreshes the in-use Tag vocabulary and so the filter
+  // list — and the selection is left intact. If any write fails the local tags
+  // may diverge from the server, so resync from the API to be safe.
+  const writeTags = async (targets: { id: string; tags: string[] }[]) => {
+    const byId = new Map(allPhotos.map((p) => [p.id, p]));
+    const changed = targets.filter((t) => {
+      const photo = byId.get(t.id);
+      return photo != null && !sameTagSet(photo.tags, t.tags);
+    });
+    setBarMode('select');
+    if (changed.length === 0) return;
+    const changedTags = new Map(changed.map((c) => [c.id, c.tags]));
+    setLoad((prev) =>
+      prev.status === 'ready'
+        ? {
+            status: 'ready',
+            photos: prev.photos.map((p) =>
+              changedTags.has(p.id) ? { ...p, tags: changedTags.get(p.id)! } : p,
+            ),
+          }
+        : prev,
+    );
+    const results = await Promise.all(
+      changed.map((c) =>
+        fetch(`/api/photos/${encodeURIComponent(c.id)}/tags`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tags: c.tags }),
+        })
+          .then((res) => res.ok)
+          .catch(() => false),
+      ),
+    );
+    if (results.some((ok) => !ok)) void loadPhotos();
+  };
+
+  // Add a Tag to every selected Photo. The typed name is canonicalized against
+  // the whole vocabulary (existing casing wins; a new name is created by first
+  // use), and Photos that already carry it are left unchanged.
+  const applyTag = (input: string) => {
+    const tag = resolveTag(input, allTags);
+    if (!tag) {
+      setBarMode('select');
+      return;
+    }
+    void writeTags(selectedPhotos.map((p) => ({ id: p.id, tags: withTag(p.tags, tag) })));
+  };
+
+  // Remove a Tag from every selected Photo — or, on a blank entry, strip all
+  // Tags from the selection. The name is matched case-insensitively, so a Photo
+  // that doesn't carry it is simply untouched.
+  const applyUntag = (input: string) => {
+    const trimmed = input.trim();
+    if (trimmed === '') {
+      void writeTags(selectedPhotos.map((p) => ({ id: p.id, tags: [] })));
+      return;
+    }
+    // resolveTag only returns null for blank input, handled above, so a
+    // non-blank entry always yields a Tag (an existing one's casing, or the
+    // typed name verbatim).
+    const tag = resolveTag(trimmed, selectionTags) as string;
+    void writeTags(selectedPhotos.map((p) => ({ id: p.id, tags: withoutTag(p.tags, tag) })));
   };
 
   // Persist a reorder (issue #9): write each moved Photo's new fractional
@@ -260,6 +333,24 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
     () => filterPhotos(allPhotos, orientations, tagModes),
     [allPhotos, orientations, tagModes],
   );
+  // The selection and its Tags: `selectionTags` is the untag autocomplete
+  // vocabulary (only Tags actually on the selected Photos).
+  const selectedPhotos = useMemo(
+    () => allPhotos.filter((p) => selected.has(p.id)),
+    [allPhotos, selected],
+  );
+  const selectionTags = useMemo(() => collectTags(selectedPhotos), [selectedPhotos]);
+
+  // Keep the tag filters in step with the in-use vocabulary: once no Photo
+  // carries a Tag (after an untag), drop any filter still keyed to it so a stale
+  // 'include' can't hide the whole grid. The pill itself disappears because
+  // FilterBar renders from `allTags`.
+  useEffect(() => {
+    setTagModes((prev) => {
+      const kept = Object.entries(prev).filter(([tag]) => allTags.includes(tag));
+      return kept.length === Object.keys(prev).length ? prev : Object.fromEntries(kept);
+    });
+  }, [allTags]);
 
   // A filtered view hides Photos, so it can't express a reorder of the whole
   // set; drag-reorder is therefore offered only in unfiltered Edit Mode (#9).
@@ -426,25 +517,22 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
       </div>
 
       {/* Edit Mode action bar: fixed, bottom-centre, shown once something is
-          selected. First click arms the delete; a second confirms it, since
-          removing the Cloudinary asset can't be undone. The bar grows/shrinks
-          smoothly between the select and confirm states (MorphPill), the shared
-          action-bar treatment for Edit Mode (tag/untag will reuse it). */}
+          selected. 'select' lists the actions; Tag/Untag open an inline entry
+          box (applied immediately, selection kept — issue #10); Delete arms a
+          confirm step, since removing the Cloudinary asset can't be undone. The
+          bar grows/shrinks smoothly between states (MorphPill). */}
       {editMode && selected.size > 0 && (
         <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 animate-fadeInMed">
           <MorphPill className={`rounded-full border shadow-lg backdrop-blur ${theme.navBg} ${theme.border}`}>
-            <div
-              key={confirming ? 'confirm' : 'select'}
-              className="flex items-center gap-4 px-5 py-3 animate-fadeInFast"
-            >
-              {confirming ? (
+            <div key={barMode} className="flex items-center gap-4 px-5 py-3 animate-fadeInFast">
+              {barMode === 'confirm' ? (
                 <>
                   <span className={`text-sm ${theme.textPrimary}`}>
                     Delete {selected.size} photo{selected.size === 1 ? '' : 's'}? This can’t be undone.
                   </span>
                   <button
                     type="button"
-                    onClick={() => setConfirming(false)}
+                    onClick={() => setBarMode('select')}
                     disabled={deleting}
                     className={`rounded-full px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 ${theme.textSecondary} ${theme.textHover} disabled:opacity-40`}
                   >
@@ -459,6 +547,27 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
                     {deleting ? 'Deleting…' : 'Confirm'}
                   </button>
                 </>
+              ) : barMode === 'tag' ? (
+                <TagInput
+                  vocabulary={allTags}
+                  placeholder={`Add tag to ${selected.size}…`}
+                  submitLabel="Add"
+                  onSubmit={applyTag}
+                  onCancel={() => setBarMode('select')}
+                  theme={theme}
+                  isDark={isDark}
+                />
+              ) : barMode === 'untag' ? (
+                <TagInput
+                  vocabulary={selectionTags}
+                  placeholder="Remove tag (blank = all)…"
+                  submitLabel="Remove"
+                  allowEmpty
+                  onSubmit={applyUntag}
+                  onCancel={() => setBarMode('select')}
+                  theme={theme}
+                  isDark={isDark}
+                />
               ) : (
                 <>
                   <span className={`text-sm ${theme.textPrimary}`}>{selected.size} Selected</span>
@@ -471,7 +580,21 @@ export default function Gallery({ isDark, theme, onExit, coverUrl }: PhotosAppPr
                   </button>
                   <button
                     type="button"
-                    onClick={() => setConfirming(true)}
+                    onClick={() => setBarMode('tag')}
+                    className={`rounded-full px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 ${theme.textPrimary} ${theme.textHover}`}
+                  >
+                    Tag
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBarMode('untag')}
+                    className={`rounded-full px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 ${theme.textPrimary} ${theme.textHover}`}
+                  >
+                    Untag
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBarMode('confirm')}
                     className={`px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 text-red-400 hover:text-red-600`}
                   >
                     Delete

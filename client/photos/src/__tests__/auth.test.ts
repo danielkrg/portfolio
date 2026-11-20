@@ -37,6 +37,7 @@ const gateway: PhotoGateway = {
   deletePhoto: async () => {},
   uploadPhoto: async () => uploadedPhoto,
   setPosition: async () => {},
+  setTags: async () => {},
 };
 
 // Build an app whose auth seam knows PASSWORD_HASH. Each call gets a FRESH auth
@@ -153,6 +154,7 @@ describe('POST /api/photos (upload, Owner-only)', () => {
         return uploadedPhoto;
       },
       setPosition: async () => {},
+      setTags: async () => {},
     };
     return { gw, uploads };
   }
@@ -228,6 +230,7 @@ describe('POST /api/photos (upload, Owner-only)', () => {
         throw new Error('cloudinary unavailable');
       },
       setPosition: async () => {},
+      setTags: async () => {},
     };
     const agent = request.agent(makeAppWith(gw));
     await agent.post('/api/photos/login').send({ password: PASSWORD });
@@ -248,6 +251,7 @@ describe('DELETE /api/photos/:id (Owner-only)', () => {
       },
       uploadPhoto: async () => uploadedPhoto,
       setPosition: async () => {},
+      setTags: async () => {},
     };
     return { gw, deleted };
   }
@@ -285,6 +289,7 @@ describe('DELETE /api/photos/:id (Owner-only)', () => {
       },
       uploadPhoto: async () => uploadedPhoto,
       setPosition: async () => {},
+      setTags: async () => {},
     };
     const agent = request.agent(makeAppWith(gw));
     await agent.post('/api/photos/login').send({ password: PASSWORD });
@@ -304,6 +309,7 @@ describe('PATCH /api/photos/:id/position (reorder, Owner-only)', () => {
       setPosition: async (id: string, position: number) => {
         writes.push({ id, position });
       },
+      setTags: async () => {},
     };
     return { gw, writes };
   }
@@ -352,10 +358,91 @@ describe('PATCH /api/photos/:id/position (reorder, Owner-only)', () => {
       setPosition: async () => {
         throw new Error('cloudinary unavailable');
       },
+      setTags: async () => {},
     };
     const agent = request.agent(makeAppWith(gw));
     await agent.post('/api/photos/login').send({ password: PASSWORD });
     expect((await agent.patch('/api/photos/DSCF6913/position').send({ position: 1 })).status).toBe(502);
+  });
+});
+
+describe('PUT /api/photos/:id/tags (tag/untag, Owner-only)', () => {
+  // A gateway that records the (id, tags) writes it was asked to persist, so we
+  // can assert a tag/untag edit reaches Cloudinary (ADR-0001) without a real
+  // account. Tag/untag replaces a Photo's whole Tag set (issue #10).
+  function recordingGateway() {
+    const writes: Array<{ id: string; tags: string[] }> = [];
+    const gw: PhotoGateway = {
+      listPhotos: async () => [],
+      deletePhoto: async () => {},
+      uploadPhoto: async () => uploadedPhoto,
+      setPosition: async () => {},
+      setTags: async (id: string, tags: string[]) => {
+        writes.push({ id, tags });
+      },
+    };
+    return { gw, writes };
+  }
+
+  function makeAppWith(gw: PhotoGateway) {
+    const auth = createAuth({ jwtSecret: 'test-secret', passwordHash: PASSWORD_HASH, userId: 'me', isProd: false });
+    const app = express();
+    app.use(express.json());
+    app.use('/api/photos', createPhotosRouter(gw, auth));
+    return app;
+  }
+
+  it('rejects an unauthenticated write and never touches the gateway', async () => {
+    const { gw, writes } = recordingGateway();
+    const res = await request(makeAppWith(gw))
+      .put('/api/photos/DSCF6913/tags')
+      .send({ tags: ['B&W'] });
+    expect(res.status).toBe(401);
+    expect(writes).toEqual([]);
+  });
+
+  it('replaces the Photo’s tag set via the gateway when authenticated', async () => {
+    const { gw, writes } = recordingGateway();
+    const agent = request.agent(makeAppWith(gw));
+    await agent.post('/api/photos/login').send({ password: PASSWORD });
+    const res = await agent.put('/api/photos/DSCF6913/tags').send({ tags: ['B&W', 'Nature'] });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ ok: true, id: 'DSCF6913', tags: ['B&W', 'Nature'] });
+    expect(writes).toEqual([{ id: 'DSCF6913', tags: ['B&W', 'Nature'] }]);
+  });
+
+  it('accepts an empty tag set (strip all tags)', async () => {
+    const { gw, writes } = recordingGateway();
+    const agent = request.agent(makeAppWith(gw));
+    await agent.post('/api/photos/login').send({ password: PASSWORD });
+    const res = await agent.put('/api/photos/DSCF6913/tags').send({ tags: [] });
+    expect(res.status).toBe(200);
+    expect(writes).toEqual([{ id: 'DSCF6913', tags: [] }]);
+  });
+
+  it('rejects a body whose tags is not an array of strings and never writes', async () => {
+    const { gw, writes } = recordingGateway();
+    const agent = request.agent(makeAppWith(gw));
+    await agent.post('/api/photos/login').send({ password: PASSWORD });
+    expect((await agent.put('/api/photos/DSCF6913/tags').send({ tags: 'B&W' })).status).toBe(400);
+    expect((await agent.put('/api/photos/DSCF6913/tags').send({ tags: [1, 2] })).status).toBe(400);
+    expect((await agent.put('/api/photos/DSCF6913/tags').send({})).status).toBe(400);
+    expect(writes).toEqual([]);
+  });
+
+  it('responds 502 when the gateway fails', async () => {
+    const gw: PhotoGateway = {
+      listPhotos: async () => [],
+      deletePhoto: async () => {},
+      uploadPhoto: async () => uploadedPhoto,
+      setPosition: async () => {},
+      setTags: async () => {
+        throw new Error('cloudinary unavailable');
+      },
+    };
+    const agent = request.agent(makeAppWith(gw));
+    await agent.post('/api/photos/login').send({ password: PASSWORD });
+    expect((await agent.put('/api/photos/DSCF6913/tags').send({ tags: ['x'] })).status).toBe(502);
   });
 });
 
