@@ -54,7 +54,7 @@ const buildContent = (t) => ({
       mobileHelper: { value: "Click project to enter", style: t.small },
       items: [
         { route: "/apps/starsync", index: { value: "01", style: t.rowNum }, name: { value: "StarSync", style: t.rowText }, stack: { value: "React / Express / Spotify API", style: t.rowText }, year: { value: "2025", style: t.rowNum } },
-        { route: "/apps/photos", cover: galleryCover, index: { value: "02", style: t.rowNum }, name: { value: "Photos", style: t.rowText }, stack: { value: "TypeScript / Cloudinary API", style: t.rowText }, year: { value: "2026", style: t.rowNum } },
+        { route: "/apps/photos", cover: galleryCover, index: { value: "02", style: t.rowNum }, name: { value: "Gallery", style: t.rowText }, stack: { value: "TypeScript / Cloudinary API", style: t.rowText }, year: { value: "2026", style: t.rowNum } },
       ],
     },
     contact: {
@@ -119,7 +119,7 @@ const buildContent = (t) => ({
       mobileHelper: { value: "Cliquez sur le projet pour y accéder", style: t.small },
       items: [
         { route: "/apps/starsync", index: { value: "01", style: t.rowNum }, name: { value: "StarSync", style: t.rowText }, stack: { value: "React / Express / Spotify API", style: t.rowText }, year: { value: "2025", style: t.rowNum } },
-        { route: "/apps/photos", cover: galleryCover, index: { value: "02", style: t.rowNum }, name: { value: "Photos", style: t.rowText }, stack: { value: "TypeScript / Cloudinary API", style: t.rowText }, year: { value: "2026", style: t.rowNum } },
+        { route: "/apps/photos", cover: galleryCover, index: { value: "02", style: t.rowNum }, name: { value: "Galerie", style: t.rowText }, stack: { value: "TypeScript / Cloudinary API", style: t.rowText }, year: { value: "2026", style: t.rowNum } },
       ],
     },
     contact: {
